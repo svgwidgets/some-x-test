@@ -1,0 +1,112 @@
+<template>
+  <div class="component-palette">
+    <h3>Components</h3>
+    <div class="palette-items">
+      <div
+        v-for="item in paletteItems"
+        :key="item.type"
+        class="palette-item"
+        :draggable="true"
+        @dragstart="handleDragStart($event, item)"
+      >
+        <div class="palette-icon">
+          <!-- SVG preview of component -->
+          <svg width="40" height="30" viewBox="0 0 40 24">
+            <path
+              v-if="item.type === 'valve'"
+              d="M 0 0 L 20 12 L 0 24 Z M 40 0 L 20 12 L 40 24 Z"
+              fill="#999"
+              stroke="#333"
+              stroke-width="1"
+            />
+          </svg>
+        </div>
+        <div class="palette-label">{{ item.label }}</div>
+      </div>
+      
+      <div
+        class="palette-item"
+        @click="emit('addComponent', 'valve')"
+      >
+        <div class="palette-icon">➕</div>
+        <div class="palette-label">Click to Add</div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+const paletteItems = [
+  { type: 'valve', label: 'Valve' },
+  // { type: 'pump', label: 'Pump' },
+  // { type: 'tank', label: 'Tank' },
+  // { type: 'sensor', label: 'Sensor' },
+];
+
+const emit = defineEmits<{
+  addComponent: [type: string];
+  dragStart: [type: string];
+}>();
+
+function handleDragStart(event: DragEvent, item: any) {
+  event.dataTransfer!.effectAllowed = 'copy';
+  event.dataTransfer!.setData('componentType', item.type);
+  emit('dragStart', item.type);
+}
+</script>
+
+<style scoped>
+.component-palette {
+  padding: 15px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.component-palette h3 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+}
+
+.palette-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: grab;
+  transition: all 0.2s;
+}
+
+.palette-item:hover {
+  background: #e3f2fd;
+  border-color: #2196F3;
+  transform: translateX(2px);
+}
+
+.palette-item:active {
+  cursor: grabbing;
+}
+
+.palette-icon {
+  width: 40px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.palette-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+</style>
