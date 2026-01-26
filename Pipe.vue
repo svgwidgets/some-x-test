@@ -1,8 +1,11 @@
 <template>
   <g class="pid-pipe">
     <!-- Main pipe line -->
-    <path
-      :d="pathData"
+    <line
+      :x1="fromPosition.x"
+      :y1="fromPosition.y"
+      :x2="toPosition.x"
+      :y2="toPosition.y"
       fill="none"
       :stroke="strokeColor"
       :stroke-width="strokeWidth"
@@ -10,7 +13,7 @@
     />
     
     <!-- Flow animation (moving dots) -->
-    <g v-if="connection.flow?.active" class="flow-animation">
+    <g v-if="flowing" class="flow-animation">
       <circle
         v-for="(dot, i) in flowDots"
         :key="i"
@@ -24,7 +27,7 @@
     
     <!-- Arrow indicating flow direction -->
     <path
-      v-if="connection.flow?.active"
+      v-if="flowing"
       :d="arrowPath"
       fill="#2196F3"
       class="flow-arrow"
@@ -33,72 +36,44 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
-import type { Connection, Position } from '@/core/types';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
+import type { Position } from '@/core/types';
 
 interface Props {
-  connection: Connection;
-  fromPosition: Position;  // Computed from component + port
+  fromPosition: Position;
   toPosition: Position;
-  strokeWidth?: number;
   flowing?: boolean;
+  strokeWidth?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  strokeWidth: 4,
   flowing: false,
-});
-
-// Calculate path
-const pathData = computed(() => {
-  const { fromPosition, toPosition, connection } = props;
-  
-  if (connection.points && connection.points.length > 0) {
-    // Custom routing with intermediate points
-    let path = `M ${fromPosition.x} ${fromPosition.y}`;
-    connection.points.forEach(point => {
-      path += ` L ${point.x} ${point.y}`;
-    });
-    path += ` L ${toPosition.x} ${toPosition.y}`;
-    return path;
-  } else {
-    // Straight line
-    return `M ${fromPosition.x} ${fromPosition.y} L ${toPosition.x} ${toPosition.y}`;
-  }
+  strokeWidth: 4,
 });
 
 const strokeColor = computed(() => {
-  if (props.connection.flow?.active) {
-    return props.connection.flow.direction === 'forward' ? '#2196F3' : '#FF9800';
-  }
-  return '#666';
+  return props.flowing ? '#2196F3' : '#666';
 });
 
 // Flow animation
 const flowDots = ref<Array<{ x: number; y: number; opacity: number }>>([]);
-let animationFrame: number;
-
-onMounted(() => {
-  if (props.flowing || props.connection.flow?.active) {
-    startFlowAnimation();
-  }
-});
-
-onUnmounted(() => {
-  if (animationFrame) {
-    cancelAnimationFrame(animationFrame);
-  }
-});
+let animationFrame: number | null = null;
 
 function startFlowAnimation() {
+  if (animationFrame) return; // Already running
+  
   const numDots = 5;
-  const speed = 2; // pixels per frame
   
   const animate = () => {
     const { fromPosition, toPosition } = props;
     const dx = toPosition.x - fromPosition.x;
     const dy = toPosition.y - fromPosition.y;
     const length = Math.sqrt(dx * dx + dy * dy);
+    
+    if (length === 0) {
+      animationFrame = requestAnimationFrame(animate);
+      return;
+    }
     
     flowDots.value = Array.from({ length: numDots }, (_, i) => {
       const offset = (Date.now() / 20 + i * (length / numDots)) % length;
@@ -107,7 +82,7 @@ function startFlowAnimation() {
       return {
         x: fromPosition.x + dx * progress,
         y: fromPosition.y + dy * progress,
-        opacity: Math.sin(progress * Math.PI),
+        opacity: Math.sin(progress * Math.PI) * 0.8 + 0.2,
       };
     });
     
@@ -116,6 +91,26 @@ function startFlowAnimation() {
   
   animate();
 }
+
+function stopFlowAnimation() {
+  if (animationFrame !== null) {
+    cancelAnimationFrame(animationFrame);
+    animationFrame = null;
+  }
+  flowDots.value = [];
+}
+
+watch(() => props.flowing, (newVal) => {
+  if (newVal) {
+    startFlowAnimation();
+  } else {
+    stopFlowAnimation();
+  }
+}, { immediate: true });
+
+onUnmounted(() => {
+  stopFlowAnimation();
+});
 
 // Arrow for flow direction
 const arrowPath = computed(() => {
@@ -130,10 +125,10 @@ const arrowPath = computed(() => {
   const arrowSize = 8;
   const x1 = midX + arrowSize * Math.cos(angle);
   const y1 = midY + arrowSize * Math.sin(angle);
-  const x2 = midX + arrowSize * Math.cos(angle + 2.5);
-  const y2 = midY + arrowSize * Math.sin(angle + 2.5);
-  const x3 = midX + arrowSize * Math.cos(angle - 2.5);
-  const y3 = midY + arrowSize * Math.sin(angle - 2.5);
+  const x2 = midX + arrowSize * 0.5 * Math.cos(angle + 2.5);
+  const y2 = midY + arrowSize * 0.5 * Math.sin(angle + 2.5);
+  const x3 = midX + arrowSize * 0.5 * Math.cos(angle - 2.5);
+  const y3 = midY + arrowSize * 0.5 * Math.sin(angle - 2.5);
   
   return `M ${x1} ${y1} L ${x2} ${y2} L ${x3} ${y3} Z`;
 });
@@ -142,6 +137,11 @@ const arrowPath = computed(() => {
 <style scoped>
 .pipe-line {
   transition: stroke 0.3s ease;
+}
+
+.pipe-line:hover {
+  stroke-width: 6;
+  filter: brightness(1.1);
 }
 
 .flow-arrow {
