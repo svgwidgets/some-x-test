@@ -20,13 +20,13 @@
       </div>
     </div>
     
-    <div class="main-content">
+    <div class="main-content" :class="{ 'runtime-mode': !isEditMode }">
       <ComponentPalette
         v-if="isEditMode"
         @addComponent="addComponentAtCenter"
       />
       
-      <PIDCanvas
+       <PIDCanvas
         :components="components"
         :connections="connections"
         :componentStates="componentStates"
@@ -304,6 +304,10 @@ button.small {
   grid-template-columns: auto 1fr 300px;
   height: 100%;
   overflow: hidden;
+}
+
+  .main-content.runtime-mode {
+  grid-template-columns: 1fr 300px; /* No palette column */
 }
 
 .sidebar {
