@@ -103,10 +103,11 @@ const {
   clearDiagram: clearDiagramFn,
 } = useDiagramEditor();
 
-// Dragging state
+// Enhanced drag state
 const isDragging = ref(false);
-const dragStartPos = ref<Position>({ x: 0, y: 0 });
 const dragComponentId = ref<string | null>(null);
+const dragStartMousePos = ref<Position>({ x: 0, y: 0 });
+const dragStartComponentPos = ref<Position>({ x: 0, y: 0 });
 
 function addComponentAtCenter(type: string) {
   const centerX = 600;
@@ -164,33 +165,43 @@ function handlePortMouseDown(componentId: string, portId: string) {
 function startDrag(componentId: string, event: MouseEvent) {
   if (!isEditMode.value) return;
   
-  isDragging.value = true;
-  dragComponentId.value = componentId;
+  event.preventDefault();
+  event.stopPropagation();
   
   const component = components.value.find(c => c.id === componentId);
-  if (component) {
-    dragStartPos.value = { ...component.position };
-  }
+  if (!component) return;
+  
+  isDragging.value = true;
+  dragComponentId.value = componentId;
+  dragStartMousePos.value = { x: event.clientX, y: event.clientY };
+  dragStartComponentPos.value = { ...component.position };
+  
+  selectComponent(componentId);
   
   document.addEventListener('mousemove', handleDragMove);
   document.addEventListener('mouseup', handleDragEnd);
 }
-
 function handleDragMove(event: MouseEvent) {
   if (!isDragging.value || !dragComponentId.value) return;
   
   const component = components.value.find(c => c.id === dragComponentId.value);
   if (!component) return;
   
-  // Simple drag (not accurate, but works for demo)
-  component.position.x = dragStartPos.value.x + event.movementX;
-  component.position.y = dragStartPos.value.y + event.movementY;
-  dragStartPos.value = { ...component.position };
+  // Calculate movement delta
+  const dx = event.clientX - dragStartMousePos.value.x;
+  const dy = event.clientY - dragStartMousePos.value.y;
+  
+  // Update component position
+  component.position = {
+    x: dragStartComponentPos.value.x + dx,
+    y: dragStartComponentPos.value.y + dy,
+  };
 }
 
-function handleDragEnd() {
+function handleDragEnd(event: MouseEvent) {
   isDragging.value = false;
   dragComponentId.value = null;
+  
   document.removeEventListener('mousemove', handleDragMove);
   document.removeEventListener('mouseup', handleDragEnd);
 }
