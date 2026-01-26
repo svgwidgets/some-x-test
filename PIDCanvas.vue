@@ -45,10 +45,14 @@
           :class="{ 'selected': selectedConnection === conn.id }"
         >
           <Pipe
-            :fromPosition="getPortPosition(conn.from.componentId, conn.from.portId)"
-            :toPosition="getPortPosition(conn.to.componentId, conn.to.portId)"
-            :flowing="conn.flow?.active || false"
-          />
+  v-for="conn in connections"
+  :key="conn.id"
+  :fromPosition="getPortPosition(conn.from.componentId, conn.from.portId)"
+  :toPosition="getPortPosition(conn.to.componentId, conn.to.portId)"
+  :flowing="conn.flow?.active || false"
+  :routingType="conn.routingType || 'auto'"
+  @click="handleConnectionClick(conn.id)"
+/>
         </g>
       </g>
       
