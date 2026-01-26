@@ -1,284 +1,167 @@
 <template>
   <div class="app">
     <div class="toolbar">
-      <h2>P&ID System - Dynamic Editor</h2>
+      <h2>P&ID System - Production Test</h2>
       <div class="controls">
-        <button @click="isEditMode = !isEditMode" :class="{ active: isEditMode }">
-          {{ isEditMode ? '✏️ Edit Mode' : '▶️ Runtime Mode' }}
+        <button @click="isEditMode = !isEditMode">
+          {{ isEditMode ? 'Runtime Mode' : 'Edit Mode' }}
         </button>
-        <button @click="addComponentAtCenter('valve')" v-if="isEditMode">
-          ➕ Add Valve
-        </button>
-        <button @click="deleteSelected" v-if="isEditMode && selectedComponent" class="danger">
-          🗑️ Delete
-        </button>
-        <button @click="clearDiagram" v-if="isEditMode" class="danger">
-          Clear All
-        </button>
-        <button @click="saveDiagram">💾 Save</button>
-        <button @click="loadDiagram">📂 Load</button>
+        <button @click="toggleValve('V-001')">Toggle V-001</button>
+        <button @click="toggleValve('V-002')">Toggle V-002</button>
+        <button @click="toggleFlow">Toggle Flow</button>
+        <button @click="saveDiagram">Save Diagram</button>
+        <button @click="loadDiagram">Load Diagram</button>
       </div>
     </div>
     
-    <div class="main-content" :class="{ 'runtime-mode': !isEditMode }">
-      <ComponentPalette
-        v-if="isEditMode"
-        @addComponent="addComponentAtCenter"
-      />
-      
-       <PIDCanvas
-        :components="components"
-        :connections="connections"
-        :componentStates="componentStates"
-        :isEditMode="isEditMode"
-        :isDrawingConnection="isDrawingConnection"
-        :selectedComponent="selectedComponent"
-        @componentClick="selectComponent"
-        @componentMouseDown="startDrag"
-        @portMouseDown="handlePortMouseDown"
-        @connectionClick="handleConnectionClick"
-        @canvasClick="handleCanvasClick"
-        @componentDrop="handleComponentDrop"
-      />
-      
-      <div class="sidebar">
-        <h3>{{ isEditMode ? 'Editor' : 'Runtime' }}</h3>
-        
-        <div v-if="selectedComponent" class="selected-info">
-          <h4>Selected: {{ selectedComponent }}</h4>
-          <button @click="deleteSelected" class="danger small">Delete</button>
-        </div>
-        
-        <div class="state-section">
-  <h4>Component States</h4>
-  <div 
-    v-for="comp in components" 
-    :key="comp.id" 
-    class="state-item"
-    :class="{ 'clickable': !isEditMode }"
-    @click="!isEditMode && toggleComponentState(comp.id)"
-  >
-    <strong>{{ comp.id }}:</strong>
-    <span :class="`state-badge state-${componentStates[comp.id] || 'closed'}`">
-      {{ componentStates[comp.id] || 'closed' }}
-    </span>
-  </div>
-</div>
-        
-        <div class="stats">
-          <h4>Diagram Stats</h4>
-          <div>Components: {{ components.length }}</div>
-          <div>Connections: {{ connections.length }}</div>
-          <div>Mode: {{ isEditMode ? 'Edit' : 'Runtime' }}</div>
-        </div>
+    <PIDCanvas
+      :components="components"
+      :connections="connections"
+      :isEditMode="isEditMode"
+      @componentClick="handleComponentClick"
+      @componentCommand="handleComponentCommand"
+    />
+    
+    <div class="sidebar">
+      <h3>System State</h3>
+      <div class="state-item">
+        <strong>Mode:</strong> {{ isEditMode ? 'Edit' : 'Runtime' }}
       </div>
+      <div class="state-item">
+        <strong>V-001:</strong> {{ componentStates['V-001'] || 'closed' }}
+      </div>
+      <div class="state-item">
+        <strong>V-002:</strong> {{ componentStates['V-002'] || 'closed' }}
+      </div>
+      <div class="state-item">
+        <strong>Flow:</strong> {{ flowActive ? 'Active' : 'Inactive' }}
+      </div>
+      
+      <h3>Diagram Data</h3>
+      <pre>{{ JSON.stringify(diagramData, null, 2) }}</pre>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, computed } from 'vue';
 import PIDCanvas from './components/PIDCanvas.vue';
-import ComponentPalette from './components/ComponentPalette.vue';
-import { useDiagramEditor } from './composables/useDiagramEditor';
-import type { Position } from './core/types';
+import type { ComponentBase, Connection, Diagram } from './core/types';
 
-const isEditMode = ref(true);
-const componentStates = ref<Record<string, string>>({});
+const isEditMode = ref(false);
+const componentStates = ref<Record<string, string>>({
+  'V-001': 'closed',
+  'V-002': 'closed',
+});
+const flowActive = ref(false);
 
-const {
-  components,
-  connections,
-  selectedComponent,
-  isDrawingConnection,
-  connectionStart,
-  addComponent,
-  removeComponent,
-  moveComponent,
-  startConnection,
-  completeConnection,
-  cancelConnection,
-  removeConnection,
-  selectComponent,
-  clearDiagram: clearDiagramFn,
-} = useDiagramEditor();
+// Define components
+const components = ref<ComponentBase[]>([
+  {
+    id: 'V-001',
+    type: 'valve',
+    position: { x: 100, y: 200 },
+    ports: [
+      { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
+      { id: 'outlet', type: 'outlet', position: { x: 40, y: 12 } },
+    ],
+    dataBindings: {
+      state: 'plc1.valves.V001.state',
+    },
+  },
+  {
+    id: 'V-002',
+    type: 'valve',
+    position: { x: 300, y: 200 },
+    ports: [
+      { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
+      { id: 'outlet', type: 'outlet', position: { x: 40, y: 12 } },
+    ],
+    dataBindings: {
+      state: 'plc1.valves.V002.state',
+    },
+  },
+]);
 
-// Enhanced drag state
-const isDragging = ref(false);
-const dragComponentId = ref<string | null>(null);
-const dragStartMousePos = ref<Position>({ x: 0, y: 0 });
-const dragStartComponentPos = ref<Position>({ x: 0, y: 0 });
+// Define connections
+const connections = ref<Connection[]>([
+  {
+    id: 'PIPE-001',
+    from: { componentId: 'V-001', portId: 'outlet' },
+    to: { componentId: 'V-002', portId: 'inlet' },
+    flow: {
+      active: flowActive.value,
+      direction: 'forward',
+      rate: 100,
+    },
+  },
+]);
 
-function addComponentAtCenter(type: string) {
-  const centerX = 600;
-  const centerY = 400;
-  const offset = components.value.length * 30;
-  
-  const newComp = addComponent(type, { 
-    x: centerX + offset, 
-    y: centerY 
-  });
-  
-  componentStates.value[newComp.id] = 'closed';
+// Diagram data (for save/load)
+const diagramData = computed<Diagram>(() => ({
+  id: 'TEST-001',
+  name: 'Test Diagram',
+  version: '1.0',
+  components: components.value,
+  connections: connections.value,
+  metadata: {
+    created: new Date().toISOString(),
+    modified: new Date().toISOString(),
+    author: 'Engineer',
+  },
+}));
+
+function toggleValve(valveId: string) {
+  const current = componentStates.value[valveId] || 'closed';
+  componentStates.value[valveId] = current === 'open' ? 'closed' : 'open';
 }
 
-function deleteSelected() {
-  if (selectedComponent.value) {
-    delete componentStates.value[selectedComponent.value];
-    removeComponent(selectedComponent.value);
-  }
+function toggleFlow() {
+  flowActive.value = !flowActive.value;
+  connections.value[0].flow!.active = flowActive.value;
 }
 
-function clearDiagram() {
-  if (confirm('Clear all components and connections?')) {
-    clearDiagramFn();
-    componentStates.value = {};
-  }
+function handleComponentClick(componentId: string) {
+  console.log('Component clicked:', componentId);
 }
 
-  function handleComponentClick(componentId: string) {
-  selectComponent(componentId);
-  
-  // In runtime mode, clicking toggles state
-  if (!isEditMode.value) {
-    toggleComponentState(componentId);
-  }
-}
-
-  function toggleComponentState(componentId: string) {
-  const current = componentStates.value[componentId] || 'closed';
-  
-  // Cycle through states: closed → open → closed
-  if (current === 'closed') {
-    componentStates.value[componentId] = 'transitioning';
-    
-    // Simulate transition time
-    setTimeout(() => {
-      componentStates.value[componentId] = 'open';
-    }, 1000);
-  } else if (current === 'open') {
-    componentStates.value[componentId] = 'transitioning';
-    
-    setTimeout(() => {
-      componentStates.value[componentId] = 'closed';
-    }, 1000);
-  }
-}
-
-function handleCanvasClick(position: Position) {
-  if (isDrawingConnection.value) {
-    cancelConnection();
-  } else {
-    selectComponent(null);
-  }
-}
-
-function handleConnectionClick(connectionId: string) {
-  if (isEditMode.value && confirm('Delete this connection?')) {
-    removeConnection(connectionId);
-  }
-}
-
-function handlePortMouseDown(componentId: string, portId: string) {
-  if (!isEditMode.value) return;
-  
-  if (isDrawingConnection.value) {
-    // Complete connection
-    completeConnection(componentId, portId);
-  } else {
-    // Start connection
-    startConnection(componentId, portId);
-  }
-}
-
-function startDrag(componentId: string, event: MouseEvent) {
-  if (!isEditMode.value) return;
-  
-  event.preventDefault();
-  event.stopPropagation();
-  
-  const component = components.value.find(c => c.id === componentId);
-  if (!component) return;
-  
-  isDragging.value = true;
-  dragComponentId.value = componentId;
-  dragStartMousePos.value = { x: event.clientX, y: event.clientY };
-  dragStartComponentPos.value = { ...component.position };
-  
-  selectComponent(componentId);
-  
-  document.addEventListener('mousemove', handleDragMove);
-  document.addEventListener('mouseup', handleDragEnd);
-}
-function handleDragMove(event: MouseEvent) {
-  if (!isDragging.value || !dragComponentId.value) return;
-  
-  const component = components.value.find(c => c.id === dragComponentId.value);
-  if (!component) return;
-  
-  // Calculate movement delta
-  const dx = event.clientX - dragStartMousePos.value.x;
-  const dy = event.clientY - dragStartMousePos.value.y;
-  
-  // Update component position
-  component.position = {
-    x: dragStartComponentPos.value.x + dx,
-    y: dragStartComponentPos.value.y + dy,
-  };
-}
-
-function handleDragEnd(event: MouseEvent) {
-  isDragging.value = false;
-  dragComponentId.value = null;
-  
-  document.removeEventListener('mousemove', handleDragMove);
-  document.removeEventListener('mouseup', handleDragEnd);
-}
-
-function handleComponentDrop(type: string, position: Position) {
-  const newComp = addComponent(type, position);
-  componentStates.value[newComp.id] = 'closed';
+function handleComponentCommand(componentId: string, action: string) {
+  console.log('Command:', componentId, action);
+  componentStates.value[componentId] = action === 'open' ? 'open' : 'closed';
 }
 
 function saveDiagram() {
-  const diagram = {
-    components: components.value,
-    connections: connections.value,
-    componentStates: componentStates.value,
-  };
-  localStorage.setItem('pid-diagram', JSON.stringify(diagram));
-  alert('Diagram saved!');
+  const json = JSON.stringify(diagramData.value, null, 2);
+  localStorage.setItem('pid-diagram', json);
+  console.log('Diagram saved:', json);
+  alert('Diagram saved to localStorage');
 }
 
 function loadDiagram() {
-  const saved = localStorage.getItem('pid-diagram');
-  if (saved) {
-    const diagram = JSON.parse(saved);
+  const json = localStorage.getItem('pid-diagram');
+  if (json) {
+    const diagram: Diagram = JSON.parse(json);
     components.value = diagram.components;
     connections.value = diagram.connections;
-    componentStates.value = diagram.componentStates || {};
-    alert('Diagram loaded!');
+    console.log('Diagram loaded:', diagram);
+    alert('Diagram loaded from localStorage');
+  } else {
+    alert('No saved diagram found');
   }
-}
-
-// Initialize with sample data
-if (components.value.length === 0) {
-  const v1 = addComponent('valve', { x: 200, y: 200 });
-  const v2 = addComponent('valve', { x: 400, y: 200 });
-  componentStates.value[v1.id] = 'closed';
-  componentStates.value[v2.id] = 'closed';
 }
 </script>
 
 <style scoped>
 .app {
   display: grid;
+  grid-template-columns: 1fr 300px;
   grid-template-rows: auto 1fr;
   height: 100vh;
   font-family: Arial, sans-serif;
 }
 
 .toolbar {
+  grid-column: 1 / -1;
   padding: 15px;
   background: #2c3e50;
   color: white;
@@ -287,14 +170,9 @@ if (components.value.length === 0) {
   align-items: center;
 }
 
-.toolbar h2 {
-  margin: 0;
-  font-size: 18px;
-}
-
 .controls {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 }
 
 button {
@@ -304,131 +182,30 @@ button {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 13px;
 }
 
 button:hover {
   background: #2980b9;
 }
 
-button.active {
-  background: #27ae60;
-}
-
-button.danger {
-  background: #e74c3c;
-}
-
-button.danger:hover {
-  background: #c0392b;
-}
-
-button.small {
-  padding: 4px 8px;
-  font-size: 11px;
-}
-
-.main-content {
-  display: grid;
-  grid-template-columns: auto 1fr 300px;
-  height: 100%;
-  overflow: hidden;
-}
-
-  .main-content.runtime-mode {
-  grid-template-columns: 1fr 300px; /* No palette column */
-}
-
 .sidebar {
-  padding: 15px;
+  padding: 20px;
   background: #ecf0f1;
   overflow-y: auto;
 }
 
-.sidebar h3, .sidebar h4 {
-  margin: 15px 0 8px 0;
-  font-size: 14px;
-}
-
-.selected-info {
-  padding: 10px;
-  background: #3498db;
-  color: white;
-  border-radius: 4px;
-  margin-bottom: 15px;
-}
-
-.state-section, .stats {
-  margin: 15px 0;
-}
-
 .state-item {
-  padding: 8px;
+  margin: 10px 0;
+  padding: 10px;
   background: white;
-  margin: 5px 0;
   border-radius: 4px;
-  font-size: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
-  .state-item.clickable {
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.state-item.clickable:hover {
-  background: #e3f2fd;
-}
-
-.state-badge {
-  padding: 3px 8px;
-  border-radius: 3px;
+pre {
+  background: white;
+  padding: 10px;
+  border-radius: 4px;
   font-size: 11px;
-  font-weight: bold;
-  text-transform: uppercase;
-}
-
-.state-badge.state-open {
-  background: #c8e6c9;
-  color: #2e7d32;
-}
-
-.state-badge.state-closed {
-  background: #ffcdd2;
-  color: #c62828;
-}
-
-.state-badge.state-transitioning {
-  background: #fff9c4;
-  color: #f57f17;
-  animation: pulse 1s infinite;
-}
-
-.state-badge.state-error {
-  background: #ffccbc;
-  color: #d84315;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
-select {
-  padding: 4px;
-  border: 1px solid #ddd;
-  border-radius: 3px;
-}
-
-.state-open { color: #27ae60; font-weight: bold; }
-.state-closed { color: #e74c3c; font-weight: bold; }
-.state-transitioning { color: #f39c12; font-weight: bold; }
-.state-error { color: #c0392b; font-weight: bold; }
-
-.stats div {
-  padding: 5px 0;
-  font-size: 12px;
+  overflow-x: auto;
 }
 </style>
