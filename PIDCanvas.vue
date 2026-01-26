@@ -16,15 +16,27 @@
       </defs>
       <rect width="100%" height="100%" fill="url(#grid)" />
       
+      <!-- Debug: Show all positions -->
+      <g v-if="debug">
+        <circle
+          v-for="(comp, i) in components"
+          :key="`debug-${i}`"
+          :cx="comp.position.x"
+          :cy="comp.position.y"
+          r="5"
+          fill="red"
+          opacity="0.5"
+        />
+      </g>
+      
       <!-- Connection layer -->
       <g class="connections-layer">
         <Pipe
           v-for="conn in connections"
           :key="conn.id"
-          :connection="conn"
           :fromPosition="getPortPosition(conn.from.componentId, conn.from.portId)"
           :toPosition="getPortPosition(conn.to.componentId, conn.to.portId)"
-          :flowing="conn.flow?.active"
+          :flowing="conn.flow?.active || false"
         />
       </g>
       
@@ -38,7 +50,6 @@
           :state="getComponentState(comp.id)"
           :isEditMode="isEditMode"
           :showPorts="isEditMode"
-          :isDataConnected="isDataConnected(comp.id)"
           @click="handleComponentClick"
           @command="handleComponentCommand"
           @portMouseDown="handlePortMouseDown"
@@ -57,15 +68,19 @@ import type { ComponentBase, Connection, Position } from '@/core/types';
 interface Props {
   components: ComponentBase[];
   connections: Connection[];
+  componentStates?: Record<string, string>;
   isEditMode?: boolean;
   width?: number;
   height?: number;
+  debug?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isEditMode: false,
   width: 1200,
   height: 800,
+  debug: false,
+  componentStates: () => ({}),
 });
 
 const emit = defineEmits<{
@@ -80,9 +95,6 @@ const svgRef = ref<SVGSVGElement>();
 // Component type mapping
 const componentTypes: Record<string, any> = {
   valve: Valve,
-  // pump: Pump,
-  // tank: Tank,
-  // sensor: Sensor,
 };
 
 function getComponentType(type: string) {
@@ -92,31 +104,33 @@ function getComponentType(type: string) {
 // Get absolute port position
 function getPortPosition(componentId: string, portId: string): Position {
   const component = props.components.find(c => c.id === componentId);
-  if (!component) return { x: 0, y: 0 };
+  
+  if (!component) {
+    console.warn(`Component not found: ${componentId}`);
+    return { x: 0, y: 0 };
+  }
   
   const port = component.ports.find(p => p.id === portId);
-  if (!port) return component.position;
   
-  // Transform port position by component position and rotation
+  if (!port) {
+    console.warn(`Port not found: ${portId} on component ${componentId}`);
+    return component.position;
+  }
+  
+  // Calculate absolute position
   const angle = (component.rotation || 0) * Math.PI / 180;
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
   
-  return {
-    x: component.position.x + port.position.x * cos - port.position.y * sin,
-    y: component.position.y + port.position.x * sin + port.position.y * cos,
-  };
+  const absX = component.position.x + port.position.x * cos - port.position.y * sin;
+  const absY = component.position.y + port.position.x * sin + port.position.y * cos;
+  
+  return { x: absX, y: absY };
 }
 
-// Get component state (from data layer)
-function getComponentState(componentId: string): any {
-  // TODO: Get from data service
-  return 'closed';
-}
-
-function isDataConnected(componentId: string): boolean {
-  // TODO: Check data service connection
-  return false;
+// Get component state
+function getComponentState(componentId: string): string {
+  return props.componentStates[componentId] || 'closed';
 }
 
 function handleCanvasClick() {
@@ -146,5 +160,13 @@ function handlePortMouseDown(componentId: string, portId: string) {
 
 .pid-canvas {
   display: block;
+}
+
+.connections-layer {
+  pointer-events: all;
+}
+
+.components-layer {
+  pointer-events: all;
 }
 </style>
