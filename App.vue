@@ -50,20 +50,20 @@
         </div>
         
         <div class="state-section">
-          <h4>Component States</h4>
-          <div v-for="comp in components" :key="comp.id" class="state-item">
-            <strong>{{ comp.id }}:</strong>
-            <select v-model="componentStates[comp.id]" v-if="!isEditMode">
-              <option value="closed">Closed</option>
-              <option value="open">Open</option>
-              <option value="transitioning">Transitioning</option>
-              <option value="error">Error</option>
-            </select>
-            <span v-else :class="`state-${componentStates[comp.id]}`">
-              {{ componentStates[comp.id] || 'closed' }}
-            </span>
-          </div>
-        </div>
+  <h4>Component States</h4>
+  <div 
+    v-for="comp in components" 
+    :key="comp.id" 
+    class="state-item"
+    :class="{ 'clickable': !isEditMode }"
+    @click="!isEditMode && toggleComponentState(comp.id)"
+  >
+    <strong>{{ comp.id }}:</strong>
+    <span :class="`state-badge state-${componentStates[comp.id] || 'closed'}`">
+      {{ componentStates[comp.id] || 'closed' }}
+    </span>
+  </div>
+</div>
         
         <div class="stats">
           <h4>Diagram Stats</h4>
@@ -133,6 +133,35 @@ function clearDiagram() {
   if (confirm('Clear all components and connections?')) {
     clearDiagramFn();
     componentStates.value = {};
+  }
+}
+
+  function handleComponentClick(componentId: string) {
+  selectComponent(componentId);
+  
+  // In runtime mode, clicking toggles state
+  if (!isEditMode.value) {
+    toggleComponentState(componentId);
+  }
+}
+
+  function toggleComponentState(componentId: string) {
+  const current = componentStates.value[componentId] || 'closed';
+  
+  // Cycle through states: closed → open → closed
+  if (current === 'closed') {
+    componentStates.value[componentId] = 'transitioning';
+    
+    // Simulate transition time
+    setTimeout(() => {
+      componentStates.value[componentId] = 'open';
+    }, 1000);
+  } else if (current === 'open') {
+    componentStates.value[componentId] = 'transitioning';
+    
+    setTimeout(() => {
+      componentStates.value[componentId] = 'closed';
+    }, 1000);
   }
 }
 
@@ -342,6 +371,49 @@ button.small {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+  .state-item.clickable {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.state-item.clickable:hover {
+  background: #e3f2fd;
+}
+
+.state-badge {
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.state-badge.state-open {
+  background: #c8e6c9;
+  color: #2e7d32;
+}
+
+.state-badge.state-closed {
+  background: #ffcdd2;
+  color: #c62828;
+}
+
+.state-badge.state-transitioning {
+  background: #fff9c4;
+  color: #f57f17;
+  animation: pulse 1s infinite;
+}
+
+.state-badge.state-error {
+  background: #ffccbc;
+  color: #d84315;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 select {
