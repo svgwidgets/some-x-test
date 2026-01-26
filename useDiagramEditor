@@ -1,0 +1,176 @@
+import { ref } from 'vue';
+import type { ComponentBase, Connection, Position, Port } from '@/core/types';
+
+export function useDiagramEditor() {
+  const components = ref<ComponentBase[]>([]);
+  const connections = ref<Connection[]>([]);
+  const selectedComponent = ref<string | null>(null);
+  const isDrawingConnection = ref(false);
+  const connectionStart = ref<{ componentId: string; portId: string } | null>(null);
+  
+  let componentCounter = 0;
+  let connectionCounter = 0;
+
+  // Add component
+  function addComponent(type: string, position: Position) {
+    componentCounter++;
+    
+    const newComponent: ComponentBase = {
+      id: `${type.toUpperCase()}-${String(componentCounter).padStart(3, '0')}`,
+      type: type,
+      position: position,
+      rotation: 0,
+      ports: getDefaultPorts(type),
+      dataBindings: {},
+      config: {},
+    };
+    
+    components.value.push(newComponent);
+    return newComponent;
+  }
+
+  // Remove component
+  function removeComponent(componentId: string) {
+    // Remove component
+    const index = components.value.findIndex(c => c.id === componentId);
+    if (index !== -1) {
+      components.value.splice(index, 1);
+    }
+    
+    // Remove connected pipes
+    connections.value = connections.value.filter(
+      conn => conn.from.componentId !== componentId && conn.to.componentId !== componentId
+    );
+    
+    if (selectedComponent.value === componentId) {
+      selectedComponent.value = null;
+    }
+  }
+
+  // Move component
+  function moveComponent(componentId: string, newPosition: Position) {
+    const component = components.value.find(c => c.id === componentId);
+    if (component) {
+      component.position = newPosition;
+    }
+  }
+
+  // Start drawing connection
+  function startConnection(componentId: string, portId: string) {
+    isDrawingConnection.value = true;
+    connectionStart.value = { componentId, portId };
+  }
+
+  // Complete connection
+  function completeConnection(toComponentId: string, toPortId: string) {
+    if (!connectionStart.value) return;
+    
+    // Check if connection already exists
+    const exists = connections.value.some(
+      conn =>
+        conn.from.componentId === connectionStart.value!.componentId &&
+        conn.from.portId === connectionStart.value!.portId &&
+        conn.to.componentId === toComponentId &&
+        conn.to.portId === toPortId
+    );
+    
+    if (exists) {
+      console.warn('Connection already exists');
+      cancelConnection();
+      return;
+    }
+    
+    // Check if connecting to self
+    if (connectionStart.value.componentId === toComponentId) {
+      console.warn('Cannot connect component to itself');
+      cancelConnection();
+      return;
+    }
+    
+    connectionCounter++;
+    
+    const newConnection: Connection = {
+      id: `PIPE-${String(connectionCounter).padStart(3, '0')}`,
+      from: connectionStart.value,
+      to: { componentId: toComponentId, portId: toPortId },
+      flow: {
+        active: false,
+        direction: 'forward',
+      },
+    };
+    
+    connections.value.push(newConnection);
+    cancelConnection();
+  }
+
+  // Cancel connection drawing
+  function cancelConnection() {
+    isDrawingConnection.value = false;
+    connectionStart.value = null;
+  }
+
+  // Remove connection
+  function removeConnection(connectionId: string) {
+    const index = connections.value.findIndex(c => c.id === connectionId);
+    if (index !== -1) {
+      connections.value.splice(index, 1);
+    }
+  }
+
+  // Select component
+  function selectComponent(componentId: string | null) {
+    selectedComponent.value = componentId;
+  }
+
+  // Get default ports for component type
+  function getDefaultPorts(type: string): Port[] {
+    switch (type) {
+      case 'valve':
+        return [
+          { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
+          { id: 'outlet', type: 'outlet', position: { x: 40, y: 12 } },
+        ];
+      case 'pump':
+        return [
+          { id: 'inlet', type: 'inlet', position: { x: 0, y: 20 } },
+          { id: 'outlet', type: 'outlet', position: { x: 40, y: 20 } },
+        ];
+      case 'tank':
+        return [
+          { id: 'inlet', type: 'inlet', position: { x: 40, y: 0 } },
+          { id: 'outlet', type: 'outlet', position: { x: 40, y: 120 } },
+        ];
+      default:
+        return [];
+    }
+  }
+
+  // Clear all
+  function clearDiagram() {
+    components.value = [];
+    connections.value = [];
+    selectedComponent.value = null;
+    componentCounter = 0;
+    connectionCounter = 0;
+  }
+
+  return {
+    // State
+    components,
+    connections,
+    selectedComponent,
+    isDrawingConnection,
+    connectionStart,
+    
+    // Actions
+    addComponent,
+    removeComponent,
+    moveComponent,
+    startConnection,
+    completeConnection,
+    cancelConnection,
+    removeConnection,
+    selectComponent,
+    clearDiagram,
+  };
+}
