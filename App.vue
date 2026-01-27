@@ -7,6 +7,7 @@
           {{ isEditMode ? '→ Runtime Mode' : '→ Edit Mode' }}
         </button>
         <button @click="toggleValve('V-001')">Toggle V-001</button>
+        <button @click="togglePump('P-001')">Toggle P-001</button>
         <button @click="toggleValve('V-002')">Toggle V-002</button>
         <button @click="toggleFlow">{{ flowActive ? 'Stop Flow' : 'Start Flow' }}</button>
         <button @click="saveDiagram">Save</button>
@@ -19,6 +20,7 @@
       :components="components"
       :connections="connections"
       :componentStates="componentStates"
+      :pumpRPM="pumpRPM"
       :isEditMode="isEditMode"
       :debug="debug"
       @componentClick="handleComponentClick"
@@ -35,6 +37,13 @@
         <span :class="`state-${componentStates['V-001']}`">
           {{ componentStates['V-001'] }}
         </span>
+      </div>
+      <div class="state-item">
+        <strong>P-001:</strong>
+        <span :class="`state-${componentStates['P-001']}`">
+          {{ componentStates['P-001'] }}
+        </span>
+        <span v-if="pumpRPM['P-001'] > 0"> ({{ pumpRPM['P-001'] }} RPM)</span>
       </div>
       <div class="state-item">
         <strong>V-002:</strong>
@@ -69,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import PIDCanvas from './components/PIDCanvas.vue';
 import type { ComponentBase, Connection } from './core/types';
 
@@ -78,17 +87,22 @@ const debug = ref(false);
 
 const componentStates = ref<Record<string, string>>({
   'V-001': 'closed',
+  'P-001': 'stopped',
   'V-002': 'closed',
+});
+
+const pumpRPM = ref<Record<string, number>>({
+  'P-001': 0,
 });
 
 const flowActive = ref(false);
 
-// Define components with proper ports
+// Define components
 const components = ref<ComponentBase[]>([
   {
     id: 'V-001',
     type: 'valve',
-    position: { x: 200, y: 200 },
+    position: { x: 150, y: 200 },
     rotation: 0,
     ports: [
       { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
@@ -99,9 +113,22 @@ const components = ref<ComponentBase[]>([
     },
   },
   {
+    id: 'P-001',
+    type: 'pump',
+    position: { x: 300, y: 200 },
+    rotation: 0,
+    ports: [
+      { id: 'inlet', type: 'inlet', position: { x: 0, y: 20 } },
+      { id: 'outlet', type: 'outlet', position: { x: 40, y: 20 } },
+    ],
+    dataBindings: {
+      state: 'plc1.pumps.P001.state',
+    },
+  },
+  {
     id: 'V-002',
     type: 'valve',
-    position: { x: 400, y: 200 },
+    position: { x: 450, y: 200 },
     rotation: 0,
     ports: [
       { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
@@ -118,6 +145,16 @@ const connections = ref<Connection[]>([
   {
     id: 'PIPE-001',
     from: { componentId: 'V-001', portId: 'outlet' },
+    to: { componentId: 'P-001', portId: 'inlet' },
+    flow: {
+      active: false,
+      direction: 'forward',
+      rate: 100,
+    },
+  },
+  {
+    id: 'PIPE-002',
+    from: { componentId: 'P-001', portId: 'outlet' },
     to: { componentId: 'V-002', portId: 'inlet' },
     flow: {
       active: false,
@@ -134,9 +171,35 @@ function toggleValve(valveId: string) {
   console.log(`${valveId}: ${current} → ${newState}`);
 }
 
+function togglePump(pumpId: string) {
+  const current = componentStates.value[pumpId];
+  
+  if (current === 'stopped') {
+    componentStates.value[pumpId] = 'starting';
+    console.log(`${pumpId}: stopped → starting`);
+    
+    setTimeout(() => {
+      componentStates.value[pumpId] = 'running';
+      pumpRPM.value[pumpId] = 3000;
+      console.log(`${pumpId}: starting → running (3000 RPM)`);
+    }, 1500);
+  } else if (current === 'running') {
+    componentStates.value[pumpId] = 'stopping';
+    console.log(`${pumpId}: running → stopping`);
+    
+    setTimeout(() => {
+      componentStates.value[pumpId] = 'stopped';
+      pumpRPM.value[pumpId] = 0;
+      console.log(`${pumpId}: stopping → stopped`);
+    }, 2000);
+  }
+}
+
 function toggleFlow() {
   flowActive.value = !flowActive.value;
-  connections.value[0].flow!.active = flowActive.value;
+  connections.value.forEach(conn => {
+    conn.flow!.active = flowActive.value;
+  });
   console.log(`Flow: ${flowActive.value ? 'Started' : 'Stopped'}`);
 }
 
@@ -154,6 +217,7 @@ function saveDiagram() {
     components: components.value,
     connections: connections.value,
     componentStates: componentStates.value,
+    pumpRPM: pumpRPM.value,
   };
   const json = JSON.stringify(diagram, null, 2);
   localStorage.setItem('pid-diagram', json);
@@ -168,6 +232,7 @@ function loadDiagram() {
     components.value = diagram.components;
     connections.value = diagram.connections;
     componentStates.value = diagram.componentStates || {};
+    pumpRPM.value = diagram.pumpRPM || {};
     console.log('Loaded:', diagram);
     alert('Diagram loaded!');
   } else {
@@ -249,24 +314,14 @@ button:hover {
   width: 80px;
 }
 
-.state-open {
-  color: #4CAF50;
-  font-weight: bold;
-}
-
-.state-closed {
-  color: #F44336;
-  font-weight: bold;
-}
-
-.state-active {
-  color: #2196F3;
-  font-weight: bold;
-}
-
-.state-inactive {
-  color: #9E9E9E;
-}
+.state-open { color: #4CAF50; font-weight: bold; }
+.state-closed { color: #F44336; font-weight: bold; }
+.state-running { color: #4CAF50; font-weight: bold; }
+.state-stopped { color: #9E9E9E; font-weight: bold; }
+.state-starting { color: #FFC107; font-weight: bold; }
+.state-stopping { color: #FF9800; font-weight: bold; }
+.state-active { color: #2196F3; font-weight: bold; }
+.state-inactive { color: #9E9E9E; }
 
 .component-info div,
 .connection-info div {
