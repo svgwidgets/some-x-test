@@ -1,0 +1,68 @@
+import { onMounted } from 'vue';
+
+onMounted(() => {
+  // Load initial test components if empty
+  if (diagramStore.components.length === 0) {
+    console.log('[App] Loading initial test diagram...');
+    
+    // Add components
+    const v1 = diagramStore.addComponent({
+      id: '',
+      type: 'valve',
+      position: { x: 150, y: 200 },
+      rotation: 0,
+      ports: [
+        { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
+        { id: 'outlet', type: 'outlet', position: { x: 40, y: 12 } },
+      ],
+      config: {},
+      dataBindings: {},
+    });
+    
+    const p1 = diagramStore.addComponent({
+      id: '',
+      type: 'pump',
+      position: { x: 300, y: 200 },
+      rotation: 0,
+      ports: [
+        { id: 'inlet', type: 'inlet', position: { x: 0, y: 20 } },
+        { id: 'outlet', type: 'outlet', position: { x: 40, y: 20 } },
+      ],
+      config: {},
+      dataBindings: {},
+    });
+    
+    const v2 = diagramStore.addComponent({
+      id: '',
+      type: 'valve',
+      position: { x: 450, y: 200 },
+      rotation: 0,
+      ports: [
+        { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
+        { id: 'outlet', type: 'outlet', position: { x: 40, y: 12 } },
+      ],
+      config: {},
+      dataBindings: {},
+    });
+    
+    // Add connections AFTER components exist
+    diagramStore.addConnection({
+      id: 'PIPE-001',
+      from: { componentId: v1.id, portId: 'outlet' },
+      to: { componentId: p1.id, portId: 'inlet' },
+      flow: { active: false, direction: 'forward', rate: 100 },
+    });
+    
+    diagramStore.addConnection({
+      id: 'PIPE-002',
+      from: { componentId: p1.id, portId: 'outlet' },
+      to: { componentId: v2.id, portId: 'inlet' },
+      flow: { active: false, direction: 'forward', rate: 100 },
+    });
+    
+    console.log('[App] Initial diagram loaded:', {
+      components: diagramStore.components.length,
+      connections: diagramStore.connections.length,
+    });
+  }
+});
