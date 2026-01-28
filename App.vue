@@ -1,242 +1,120 @@
 <template>
   <div class="app">
-    <div class="toolbar">
-      <h2>P&ID System - Production Test</h2>
-      <div class="controls">
-        <button @click="isEditMode = !isEditMode">
-          {{ isEditMode ? '→ Runtime Mode' : '→ Edit Mode' }}
-        </button>
-        <button @click="toggleValve('V-001')">Toggle V-001</button>
-        <button @click="togglePump('P-001')">Toggle P-001</button>
-        <button @click="toggleValve('V-002')">Toggle V-002</button>
-        <button @click="toggleFlow">{{ flowActive ? 'Stop Flow' : 'Start Flow' }}</button>
-        <button @click="saveDiagram">Save</button>
-        <button @click="loadDiagram">Load</button>
-        <button @click="debug = !debug">{{ debug ? 'Hide Debug' : 'Show Debug' }}</button>
-      </div>
-    </div>
+    <Toolbar />
     
-    <PIDCanvas
-      :components="components"
-      :connections="connections"
-      :componentStates="componentStates"
-      :pumpRPM="pumpRPM"
-      :isEditMode="isEditMode"
-      :debug="debug"
-      @componentClick="handleComponentClick"
-      @componentCommand="handleComponentCommand"
-    />
-    
-    <div class="sidebar">
-      <h3>System State</h3>
-      <div class="state-item">
-        <strong>Mode:</strong> {{ isEditMode ? 'Edit' : 'Runtime' }}
-      </div>
-      <div class="state-item">
-        <strong>V-001:</strong> 
-        <span :class="`state-${componentStates['V-001']}`">
-          {{ componentStates['V-001'] }}
-        </span>
-      </div>
-      <div class="state-item">
-        <strong>P-001:</strong>
-        <span :class="`state-${componentStates['P-001']}`">
-          {{ componentStates['P-001'] }}
-        </span>
-        <span v-if="pumpRPM['P-001'] > 0"> ({{ pumpRPM['P-001'] }} RPM)</span>
-      </div>
-      <div class="state-item">
-        <strong>V-002:</strong>
-        <span :class="`state-${componentStates['V-002']}`">
-          {{ componentStates['V-002'] }}
-        </span>
-      </div>
-      <div class="state-item">
-        <strong>Flow:</strong> 
-        <span :class="flowActive ? 'state-active' : 'state-inactive'">
-          {{ flowActive ? 'Active' : 'Inactive' }}
-        </span>
-      </div>
+    <div class="main-content" :class="{ 'runtime-mode': editorStore.isRuntimeMode }">
+      <!-- Palette: Only in edit mode -->
+      <ComponentPalette v-if="editorStore.isEditMode" />
       
-      <h3>Components ({{ components.length }})</h3>
-      <div v-for="comp in components" :key="comp.id" class="component-info">
-        <strong>{{ comp.id }}</strong>
-        <div>Type: {{ comp.type }}</div>
-        <div>Position: ({{ comp.position.x }}, {{ comp.position.y }})</div>
-        <div>Ports: {{ comp.ports.length }}</div>
-      </div>
+      <!-- Canvas: Always visible -->
+      <PIDCanvas
+        :components="diagramStore.components"
+        :connections="diagramStore.connections"
+        :componentStates="runtimeStore.componentStates"
+        :pumpRPM="runtimeStore.pumpRPM"
+        :tankLevels="runtimeStore.tankLevels"
+        :sensorValues="runtimeStore.sensorValues"
+        :isEditMode="editorStore.isEditMode"
+        :showGrid="editorStore.showGrid"
+        @componentClick="handleComponentClick"
+        @componentCommand="handleComponentCommand"
+      />
       
-      <h3>Connections ({{ connections.length }})</h3>
-      <div v-for="conn in connections" :key="conn.id" class="connection-info">
-        <strong>{{ conn.id }}</strong>
-        <div>{{ conn.from.componentId }}.{{ conn.from.portId }}</div>
-        <div>→ {{ conn.to.componentId }}.{{ conn.to.portId }}</div>
-        <div>Flow: {{ conn.flow?.active ? 'Active' : 'Inactive' }}</div>
-      </div>
+      <!-- Sidebar: Conditional visibility -->
+      <aside 
+        class="sidebar" 
+        v-show="editorStore.isEditMode || editorStore.hasSelection"
+      >
+        <h3>{{ editorStore.isEditMode ? 'Properties' : 'Component Info' }}</h3>
+        
+        <!-- System State Section -->
+        <div class="sidebar-section">
+          <h4>System State</h4>
+          <div class="state-item">
+            <strong>Mode:</strong>
+            <span :class="editorStore.isEditMode ? 'mode-edit' : 'mode-runtime'">
+              {{ editorStore.isEditMode ? 'Edit' : 'Runtime' }}
+            </span>
+          </div>
+          
+          <!-- Component states -->
+          <div 
+            v-for="comp in diagramStore.components" 
+            :key="comp.id" 
+            class="state-item"
+          >
+            <strong>{{ comp.id }}:</strong>
+            <span :class="getStateClass(comp)">
+              {{ getStateDisplay(comp) }}
+            </span>
+          </div>
+        </div>
+      </aside>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed } from 'vue';
+import { useEditorStore } from '@/stores/editor';
+import { useDiagramStore } from '@/stores/diagram';
+import { useRuntimeStore } from '@/stores/runtime';
+import Toolbar from './components/editor/Toolbar.vue';
+import ComponentPalette from './components/editor/ComponentPalette.vue';
 import PIDCanvas from './components/PIDCanvas.vue';
-import type { ComponentBase, Connection } from './core/types';
+import type { ComponentBase } from './core/types';
 
-const isEditMode = ref(false);
-const debug = ref(false);
-
-const componentStates = ref<Record<string, string>>({
-  'V-001': 'closed',
-  'P-001': 'stopped',
-  'V-002': 'closed',
-});
-
-const pumpRPM = ref<Record<string, number>>({
-  'P-001': 0,
-});
-
-const flowActive = ref(false);
-
-// Define components
-const components = ref<ComponentBase[]>([
-  {
-    id: 'V-001',
-    type: 'valve',
-    position: { x: 150, y: 200 },
-    rotation: 0,
-    ports: [
-      { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
-      { id: 'outlet', type: 'outlet', position: { x: 40, y: 12 } },
-    ],
-    dataBindings: {
-      state: 'plc1.valves.V001.state',
-    },
-  },
-  {
-    id: 'P-001',
-    type: 'pump',
-    position: { x: 300, y: 200 },
-    rotation: 0,
-    ports: [
-      { id: 'inlet', type: 'inlet', position: { x: 0, y: 20 } },
-      { id: 'outlet', type: 'outlet', position: { x: 40, y: 20 } },
-    ],
-    dataBindings: {
-      state: 'plc1.pumps.P001.state',
-    },
-  },
-  {
-    id: 'V-002',
-    type: 'valve',
-    position: { x: 450, y: 200 },
-    rotation: 0,
-    ports: [
-      { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
-      { id: 'outlet', type: 'outlet', position: { x: 40, y: 12 } },
-    ],
-    dataBindings: {
-      state: 'plc1.valves.V002.state',
-    },
-  },
-]);
-
-// Define connections
-const connections = ref<Connection[]>([
-  {
-    id: 'PIPE-001',
-    from: { componentId: 'V-001', portId: 'outlet' },
-    to: { componentId: 'P-001', portId: 'inlet' },
-    flow: {
-      active: false,
-      direction: 'forward',
-      rate: 100,
-    },
-  },
-  {
-    id: 'PIPE-002',
-    from: { componentId: 'P-001', portId: 'outlet' },
-    to: { componentId: 'V-002', portId: 'inlet' },
-    flow: {
-      active: false,
-      direction: 'forward',
-      rate: 100,
-    },
-  },
-]);
-
-function toggleValve(valveId: string) {
-  const current = componentStates.value[valveId];
-  const newState = current === 'open' ? 'closed' : 'open';
-  componentStates.value[valveId] = newState;
-  console.log(`${valveId}: ${current} → ${newState}`);
-}
-
-function togglePump(pumpId: string) {
-  const current = componentStates.value[pumpId];
-  
-  if (current === 'stopped') {
-    componentStates.value[pumpId] = 'starting';
-    console.log(`${pumpId}: stopped → starting`);
-    
-    setTimeout(() => {
-      componentStates.value[pumpId] = 'running';
-      pumpRPM.value[pumpId] = 3000;
-      console.log(`${pumpId}: starting → running (3000 RPM)`);
-    }, 1500);
-  } else if (current === 'running') {
-    componentStates.value[pumpId] = 'stopping';
-    console.log(`${pumpId}: running → stopping`);
-    
-    setTimeout(() => {
-      componentStates.value[pumpId] = 'stopped';
-      pumpRPM.value[pumpId] = 0;
-      console.log(`${pumpId}: stopping → stopped`);
-    }, 2000);
-  }
-}
-
-function toggleFlow() {
-  flowActive.value = !flowActive.value;
-  connections.value.forEach(conn => {
-    conn.flow!.active = flowActive.value;
-  });
-  console.log(`Flow: ${flowActive.value ? 'Started' : 'Stopped'}`);
-}
+const editorStore = useEditorStore();
+const diagramStore = useDiagramStore();
+const runtimeStore = useRuntimeStore();
 
 function handleComponentClick(componentId: string) {
   console.log('Component clicked:', componentId);
+  editorStore.selectComponent(componentId);
 }
 
 function handleComponentCommand(componentId: string, action: string) {
   console.log('Command:', componentId, action);
-  componentStates.value[componentId] = action;
 }
 
-function saveDiagram() {
-  const diagram = {
-    components: components.value,
-    connections: connections.value,
-    componentStates: componentStates.value,
-    pumpRPM: pumpRPM.value,
-  };
-  const json = JSON.stringify(diagram, null, 2);
-  localStorage.setItem('pid-diagram', json);
-  console.log('Saved:', json);
-  alert('Diagram saved!');
+// Helper functions for state display
+function getStateClass(component: ComponentBase): string {
+  const state = runtimeStore.componentStates[component.id];
+  
+  switch (component.type) {
+    case 'valve':
+      return state === 'open' ? 'state-open' : 'state-closed';
+    case 'pump':
+      return `state-${state}`;
+    case 'tank':
+      const level = runtimeStore.tankLevels[component.id] || 0;
+      if (level >= 95) return 'state-tank-alarm-high';
+      if (level <= 10) return 'state-tank-alarm-low';
+      return 'state-tank-normal';
+    case 'sensor':
+      return 'state-sensor-normal';
+    default:
+      return '';
+  }
 }
 
-function loadDiagram() {
-  const json = localStorage.getItem('pid-diagram');
-  if (json) {
-    const diagram = JSON.parse(json);
-    components.value = diagram.components;
-    connections.value = diagram.connections;
-    componentStates.value = diagram.componentStates || {};
-    pumpRPM.value = diagram.pumpRPM || {};
-    console.log('Loaded:', diagram);
-    alert('Diagram loaded!');
-  } else {
-    alert('No saved diagram found');
+function getStateDisplay(component: ComponentBase): string {
+  switch (component.type) {
+    case 'valve':
+    case 'pump':
+      return runtimeStore.componentStates[component.id] || 'unknown';
+    
+    case 'tank':
+      const level = runtimeStore.tankLevels[component.id] || 0;
+      return `${level}%`;
+    
+    case 'sensor':
+      const value = runtimeStore.sensorValues[component.id] || 0;
+      const unit = component.config?.unit || '';
+      return `${value.toFixed(1)} ${unit}`;
+    
+    default:
+      return 'unknown';
   }
 }
 </script>
@@ -244,88 +122,147 @@ function loadDiagram() {
 <style scoped>
 .app {
   display: grid;
-  grid-template-columns: 1fr 300px;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: 60px 1fr;
   height: 100vh;
-  font-family: Arial, sans-serif;
-  margin: 0;
+  width: 100vw;
+  overflow: hidden;
 }
 
-.toolbar {
-  grid-column: 1 / -1;
-  padding: 15px;
-  background: #2c3e50;
-  color: white;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+/* Edit mode: 3 columns (Palette | Canvas | Sidebar) */
+.main-content {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  height: 100%;
+  overflow: hidden;
+  transition: grid-template-columns var(--transition-normal);
 }
 
-.toolbar h2 {
-  margin: 0;
-  font-size: 18px;
+/* Runtime mode: 2 columns (Canvas | Sidebar - conditional) */
+.main-content.runtime-mode {
+  grid-template-columns: 1fr 320px;
 }
 
-.controls {
-  display: flex;
-  gap: 8px;
+/* Hide sidebar completely if no selection in runtime mode */
+.main-content.runtime-mode .sidebar {
+  display: none;
 }
 
-button {
-  padding: 8px 16px;
-  background: #3498db;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-button:hover {
-  background: #2980b9;
+/* Show sidebar when there's a selection */
+.main-content.runtime-mode .sidebar[style*="display: block"] {
+  display: block;
 }
 
 .sidebar {
-  padding: 15px;
-  background: #ecf0f1;
+  padding: var(--spacing-lg);
+  background: var(--color-bg-tertiary);
+  border-left: 1px solid var(--color-border-light);
   overflow-y: auto;
 }
 
 .sidebar h3 {
-  margin: 20px 0 10px 0;
-  font-size: 14px;
-  color: #2c3e50;
-  border-bottom: 2px solid #bdc3c7;
-  padding-bottom: 5px;
+  margin: 0 0 var(--spacing-lg) 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 2px solid var(--color-border-light);
 }
 
-.state-item,
-.component-info,
-.connection-info {
-  margin: 8px 0;
-  padding: 10px;
-  background: white;
-  border-radius: 4px;
+.sidebar-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+.sidebar-section h4 {
+  margin: 0 0 var(--spacing-sm) 0;
   font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+}
+
+.state-item {
+  margin: var(--spacing-sm) 0;
+  padding: var(--spacing-md);
+  background: white;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-fast);
+}
+
+.state-item:hover {
+  box-shadow: var(--shadow-md);
 }
 
 .state-item strong {
   display: inline-block;
-  width: 80px;
+  min-width: 80px;
+  color: var(--color-text-secondary);
+  font-weight: 600;
 }
 
-.state-open { color: #4CAF50; font-weight: bold; }
-.state-closed { color: #F44336; font-weight: bold; }
-.state-running { color: #4CAF50; font-weight: bold; }
-.state-stopped { color: #9E9E9E; font-weight: bold; }
-.state-starting { color: #FFC107; font-weight: bold; }
-.state-stopping { color: #FF9800; font-weight: bold; }
-.state-active { color: #2196F3; font-weight: bold; }
-.state-inactive { color: #9E9E9E; }
+/* Mode styles */
+.mode-edit {
+  color: var(--color-primary);
+  font-weight: 600;
+}
 
-.component-info div,
-.connection-info div {
-  margin: 3px 0;
-  color: #555;
+.mode-runtime {
+  color: var(--color-secondary);
+  font-weight: 600;
+}
+
+/* Component state styles */
+.state-open {
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.state-closed {
+  color: #F44336;
+  font-weight: 600;
+}
+
+.state-running {
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.state-stopped {
+  color: #9E9E9E;
+  font-weight: 600;
+}
+
+.state-starting {
+  color: #FFC107;
+  font-weight: 600;
+}
+
+.state-stopping {
+  color: #FF9800;
+  font-weight: 600;
+}
+
+.state-tank-normal {
+  color: #2196F3;
+  font-weight: 600;
+}
+
+.state-tank-alarm-low,
+.state-tank-alarm-high {
+  color: #F44336;
+  font-weight: 600;
+  animation: blink-alarm 1s infinite;
+}
+
+.state-sensor-normal {
+  color: #2E7D32;
+  font-weight: 600;
+}
+
+@keyframes blink-alarm {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.3; }
 }
 </style>
