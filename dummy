@@ -1,251 +1,148 @@
-<!-- Temporary connection line (while drawing) -->
-<g v-if="editorStore.isDrawingConnectionActive && editorStore.connectionDrawing.currentMousePos" class="temporary-connection">
-  <line
-    :x1="getTemporaryConnectionStart().x"
-    :y1="getTemporaryConnectionStart().y"
-    :x2="editorStore.connectionDrawing.currentMousePos.x"
-    :y2="editorStore.connectionDrawing.currentMousePos.y"
-    stroke="#2196F3"
-    stroke-width="2"
-    stroke-dasharray="5,5"
-    fill="none"
-    class="temp-line"
-  />
-  <circle
-    :cx="getTemporaryConnectionStart().x"
-    :cy="getTemporaryConnectionStart().y"
-    r="4"
-    fill="#2196F3"
-  />
-  <circle
-    :cx="editorStore.connectionDrawing.currentMousePos.x"
-    :cy="editorStore.connectionDrawing.currentMousePos.y"
-    r="4"
-    fill="#2196F3"
-  />
-</g>
+<template>
+  <div class="app">
+    <Toolbar />
+    
+    <div class="main-content" :class="{ 
+      'edit-mode': editorStore.isEditMode,
+      'runtime-mode': editorStore.isRuntimeMode,
+      'has-selection': showPropertiesPanel 
+    }">
+      <!-- Palette: Only in edit mode -->
+      <ComponentPalette v-if="editorStore.isEditMode" />
+      
+      <!-- Canvas: Always visible, expands when no properties -->
+      <PIDCanvas
+        :components="diagramStore.components"
+        :connections="diagramStore.connections"
+        :componentStates="runtimeStore.componentStates"
+        :pumpRPM="runtimeStore.pumpRPM"
+        :tankLevels="runtimeStore.tankLevels"
+        :sensorValues="runtimeStore.sensorValues"
+        :isEditMode="editorStore.isEditMode"
+        :showGrid="editorStore.showGrid"
+        @componentClick="handleComponentClick"
+        @connectionClick="handleConnectionClick"
+      />
+      
+      <!-- Properties Panel: Only when something selected in edit mode -->
+      <PropertiesPanel 
+        v-if="showPropertiesPanel"
+        :selectedItem="selectedItem"
+        @save="handlePropertiesSave"
+        @cancel="handlePropertiesCancel"
+        @delete="handleDelete"
+      />
+    </div>
+  </div>
+</template>
 
-<component
-  :is="getComponentType(comp.type)"
-  :component="comp"
-  :state="getComponentState(comp.id)"
-  :rpm="getComponentRPM(comp.id)"
-  :level="getComponentLevel(comp.id)"
-  :value="getComponentValue(comp.id)"
-  :isEditMode="isEditMode"
-  :showPorts="isEditMode"
-  @click="handleComponentClick(comp.id)"
-  @portMouseDown="handlePortMouseDown"
-  @portMouseEnter="handlePortMouseEnter"
-  @portMouseLeave="handlePortMouseLeave"
-/>
+<script setup lang="ts">
+import { computed } from 'vue';
+import { useEditorStore } from '@/stores/editor';
+import { useDiagramStore } from '@/stores/diagram';
+import { useRuntimeStore } from '@/stores/runtime';
+import Toolbar from './components/editor/Toolbar.vue';
+import ComponentPalette from './components/editor/ComponentPalette.vue';
+import PIDCanvas from './components/PIDCanvas.vue';
+import PropertiesPanel from './components/editor/PropertiesPanel.vue';
 
-// Port interaction
-function handlePortMouseDown(componentId: string, portId: string, portType: string) {
-  if (!props.isEditMode) return;
-  
-  console.log('[PIDCanvas] Port clicked:', componentId, portId, portType);
-  
-  // If already drawing, try to complete connection
-  if (editorStore.isDrawingConnectionActive) {
-    completeConnection(componentId, portId, portType);
-  } else {
-    // Start new connection
-    startConnection(componentId, portId, portType);
-  }
-}
+const editorStore = useEditorStore();
+const diagramStore = useDiagramStore();
+const runtimeStore = useRuntimeStore();
 
-function handlePortMouseEnter(componentId: string, portId: string) {
-  console.log('[PIDCanvas] Port hover:', componentId, portId);
-  // Future: Highlight valid target ports
-}
-
-function handlePortMouseLeave(componentId: string, portId: string) {
-  // Future: Remove highlight
-}
-
-// Start drawing connection
-function startConnection(componentId: string, portId: string, portType: string) {
-  // Get port position
-  const portPos = getPortPosition(componentId, portId);
-  
-  editorStore.startConnectionDrawing(componentId, portId, portPos);
-  
-  console.log('[PIDCanvas] Started connection from:', componentId, portId);
-}
-
-// Complete connection
-function completeConnection(endComponentId: string, endPortId: string, endPortType: string) {
-  const drawing = editorStore.connectionDrawing;
-  
-  if (!drawing.startComponentId || !drawing.startPortId) {
-    editorStore.cancelConnectionDrawing();
-    return;
-  }
-  
-  // Get start port info
-  const startComponent = props.components.find(c => c.id === drawing.startComponentId);
-  const startPort = startComponent?.ports?.find(p => p.id === drawing.startPortId);
-  
-  if (!startComponent || !startPort) {
-    console.error('[PIDCanvas] Start component/port not found');
-    editorStore.cancelConnectionDrawing();
-    return;
-  }
-  
-  // Validate connection
-  const validation = validateConnection(
-    drawing.startComponentId,
-    drawing.startPortId,
-    startPort.type,
-    endComponentId,
-    endPortId,
-    endPortType
+// Show properties panel only in edit mode with selection
+const showPropertiesPanel = computed(() => {
+  return editorStore.isEditMode && (
+    editorStore.selectedComponentId !== null || 
+    editorStore.selectedConnectionId !== null
   );
-  
-  if (!validation.valid) {
-    console.warn('[PIDCanvas] Invalid connection:', validation.reason);
-    alert(validation.reason); // Temporary - replace with toast notification
-    editorStore.cancelConnectionDrawing();
-    return;
-  }
-  
-  // Create connection
-  const newConnection: Connection = {
-    id: '', // Will be auto-generated
-    from: {
-      componentId: drawing.startComponentId,
-      portId: drawing.startPortId,
-    },
-    to: {
-      componentId: endComponentId,
-      portId: endPortId,
-    },
-    flow: {
-      active: false,
-      direction: 'forward',
-      rate: 0,
-    },
-  };
-  
-  diagramStore.addConnection(newConnection);
-  editorStore.cancelConnectionDrawing();
-  
-  console.log('[PIDCanvas] Connection created:', newConnection);
-}
-
-// Validate connection rules
-function validateConnection(
-  fromComponentId: string,
-  fromPortId: string,
-  fromPortType: string,
-  toComponentId: string,
-  toPortId: string,
-  toPortType: string
-): { valid: boolean; reason?: string } {
-  // Can't connect to same component
-  if (fromComponentId === toComponentId) {
-    return { valid: false, reason: 'Cannot connect component to itself' };
-  }
-  
-  // Check port type compatibility
-  const validCombinations = [
-    { from: 'outlet', to: 'inlet' },
-    { from: 'inlet', to: 'outlet' },
-  ];
-  
-  const isValidCombination = validCombinations.some(
-    combo => combo.from === fromPortType && combo.to === toPortType
-  );
-  
-  if (!isValidCombination) {
-    return { 
-      valid: false, 
-      reason: `Cannot connect ${fromPortType} to ${toPortType}. Must connect outlet ↔ inlet` 
-    };
-  }
-  
-  // Check if connection already exists
-  if (diagramStore.connectionExists(fromComponentId, fromPortId, toComponentId, toPortId)) {
-    return { valid: false, reason: 'Connection already exists' };
-  }
-  
-  return { valid: true };
-}
-
-// Get temporary connection start position
-function getTemporaryConnectionStart(): Position {
-  const drawing = editorStore.connectionDrawing;
-  if (!drawing.startComponentId || !drawing.startPortId) {
-    return { x: 0, y: 0 };
-  }
-  return getPortPosition(drawing.startComponentId, drawing.startPortId);
-}
-
-// Update mouse position for temporary line
-function handleCanvasMouseMove(event: MouseEvent) {
-  if (editorStore.isDrawingConnectionActive) {
-    const svgPos = screenToSVG(event.clientX, event.clientY);
-    editorStore.updateConnectionMousePosition(svgPos);
-  }
-}
-
-// Cancel connection on canvas click
-function handleCanvasMouseDown(event: MouseEvent) {
-  if (!props.isEditMode) return;
-  
-  // If drawing connection, cancel it
-  if (editorStore.isDrawingConnectionActive) {
-    editorStore.cancelConnectionDrawing();
-    console.log('[PIDCanvas] Connection cancelled by canvas click');
-    return;
-  }
-  
-  // ... existing drag code ...
-}
-
-// Add keyboard handler for Escape
-function handleKeyDown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && editorStore.isDrawingConnectionActive) {
-    editorStore.cancelConnectionDrawing();
-    console.log('[PIDCanvas] Connection cancelled by Escape key');
-  }
-}
-
-// Setup listeners
-onMounted(() => {
-  document.addEventListener('mousemove', handleGlobalMouseMove);
-  document.addEventListener('mouseup', handleGlobalMouseUp);
-  document.addEventListener('keydown', handleKeyDown);
-  
-  if (svgRef.value) {
-    svgRef.value.addEventListener('mousemove', handleCanvasMouseMove);
-  }
 });
 
-onUnmounted(() => {
-  document.removeEventListener('mousemove', handleGlobalMouseMove);
-  document.removeEventListener('mouseup', handleGlobalMouseUp);
-  document.removeEventListener('keydown', handleKeyDown);
-  
-  if (svgRef.value) {
-    svgRef.value.removeEventListener('mousemove', handleCanvasMouseMove);
+// Get selected item (component or connection)
+const selectedItem = computed(() => {
+  if (editorStore.selectedComponentId) {
+    const component = diagramStore.components.find(c => c.id === editorStore.selectedComponentId);
+    return component ? { type: 'component', data: component } : null;
   }
+  
+  if (editorStore.selectedConnectionId) {
+    const connection = diagramStore.connections.find(c => c.id === editorStore.selectedConnectionId);
+    return connection ? { type: 'connection', data: connection } : null;
+  }
+  
+  return null;
 });
 
+function handleComponentClick(componentId: string) {
+  editorStore.selectComponent(componentId);
+  editorStore.clearConnectionSelection(); // Add this to store
+}
+
+function handleConnectionClick(connectionId: string) {
+  editorStore.selectConnection(connectionId); // Add this to store
+  editorStore.clearSelection(); // Clear component selection
+}
+
+function handlePropertiesSave(updates: any) {
+  if (selectedItem.value?.type === 'component') {
+    diagramStore.updateComponent(editorStore.selectedComponentId!, updates);
+  } else if (selectedItem.value?.type === 'connection') {
+    diagramStore.updateConnection(editorStore.selectedConnectionId!, updates);
+  }
+  
+  // Clear selection (close panel)
+  editorStore.clearSelection();
+  editorStore.clearConnectionSelection();
+  
+  console.log('[App] Properties saved and panel closed');
+}
+
+function handlePropertiesCancel() {
+  // Just close panel without saving
+  editorStore.clearSelection();
+  editorStore.clearConnectionSelection();
+  
+  console.log('[App] Properties cancelled and panel closed');
+}
+
+function handleDelete() {
+  if (selectedItem.value?.type === 'component') {
+    diagramStore.removeComponent(editorStore.selectedComponentId!);
+  } else if (selectedItem.value?.type === 'connection') {
+    diagramStore.removeConnection(editorStore.selectedConnectionId!);
+  }
+  
+  editorStore.clearSelection();
+  editorStore.clearConnectionSelection();
+  
+  console.log('[App] Item deleted');
+}
+</script>
 
 <style scoped>
-/* ... existing styles ... */
-
-.temporary-connection {
-  pointer-events: none;
+.app {
+  display: grid;
+  grid-template-rows: 60px 1fr;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
 }
 
-.temp-line {
-  animation: dash 1s linear infinite;
+/* Edit mode: Palette visible */
+.main-content.edit-mode {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  transition: grid-template-columns var(--transition-normal);
 }
 
-@keyframes dash {
-  to { stroke-dashoffset: -10; }
+/* Edit mode WITH selection: Palette + Canvas + Properties */
+.main-content.edit-mode.has-selection {
+  grid-template-columns: 280px 1fr 360px;
+}
+
+/* Runtime mode: Just canvas */
+.main-content.runtime-mode {
+  display: grid;
+  grid-template-columns: 1fr;
 }
 </style>
