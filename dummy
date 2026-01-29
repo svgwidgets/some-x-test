@@ -1,68 +1,251 @@
-import { onMounted } from 'vue';
+<!-- Temporary connection line (while drawing) -->
+<g v-if="editorStore.isDrawingConnectionActive && editorStore.connectionDrawing.currentMousePos" class="temporary-connection">
+  <line
+    :x1="getTemporaryConnectionStart().x"
+    :y1="getTemporaryConnectionStart().y"
+    :x2="editorStore.connectionDrawing.currentMousePos.x"
+    :y2="editorStore.connectionDrawing.currentMousePos.y"
+    stroke="#2196F3"
+    stroke-width="2"
+    stroke-dasharray="5,5"
+    fill="none"
+    class="temp-line"
+  />
+  <circle
+    :cx="getTemporaryConnectionStart().x"
+    :cy="getTemporaryConnectionStart().y"
+    r="4"
+    fill="#2196F3"
+  />
+  <circle
+    :cx="editorStore.connectionDrawing.currentMousePos.x"
+    :cy="editorStore.connectionDrawing.currentMousePos.y"
+    r="4"
+    fill="#2196F3"
+  />
+</g>
 
+<component
+  :is="getComponentType(comp.type)"
+  :component="comp"
+  :state="getComponentState(comp.id)"
+  :rpm="getComponentRPM(comp.id)"
+  :level="getComponentLevel(comp.id)"
+  :value="getComponentValue(comp.id)"
+  :isEditMode="isEditMode"
+  :showPorts="isEditMode"
+  @click="handleComponentClick(comp.id)"
+  @portMouseDown="handlePortMouseDown"
+  @portMouseEnter="handlePortMouseEnter"
+  @portMouseLeave="handlePortMouseLeave"
+/>
+
+// Port interaction
+function handlePortMouseDown(componentId: string, portId: string, portType: string) {
+  if (!props.isEditMode) return;
+  
+  console.log('[PIDCanvas] Port clicked:', componentId, portId, portType);
+  
+  // If already drawing, try to complete connection
+  if (editorStore.isDrawingConnectionActive) {
+    completeConnection(componentId, portId, portType);
+  } else {
+    // Start new connection
+    startConnection(componentId, portId, portType);
+  }
+}
+
+function handlePortMouseEnter(componentId: string, portId: string) {
+  console.log('[PIDCanvas] Port hover:', componentId, portId);
+  // Future: Highlight valid target ports
+}
+
+function handlePortMouseLeave(componentId: string, portId: string) {
+  // Future: Remove highlight
+}
+
+// Start drawing connection
+function startConnection(componentId: string, portId: string, portType: string) {
+  // Get port position
+  const portPos = getPortPosition(componentId, portId);
+  
+  editorStore.startConnectionDrawing(componentId, portId, portPos);
+  
+  console.log('[PIDCanvas] Started connection from:', componentId, portId);
+}
+
+// Complete connection
+function completeConnection(endComponentId: string, endPortId: string, endPortType: string) {
+  const drawing = editorStore.connectionDrawing;
+  
+  if (!drawing.startComponentId || !drawing.startPortId) {
+    editorStore.cancelConnectionDrawing();
+    return;
+  }
+  
+  // Get start port info
+  const startComponent = props.components.find(c => c.id === drawing.startComponentId);
+  const startPort = startComponent?.ports?.find(p => p.id === drawing.startPortId);
+  
+  if (!startComponent || !startPort) {
+    console.error('[PIDCanvas] Start component/port not found');
+    editorStore.cancelConnectionDrawing();
+    return;
+  }
+  
+  // Validate connection
+  const validation = validateConnection(
+    drawing.startComponentId,
+    drawing.startPortId,
+    startPort.type,
+    endComponentId,
+    endPortId,
+    endPortType
+  );
+  
+  if (!validation.valid) {
+    console.warn('[PIDCanvas] Invalid connection:', validation.reason);
+    alert(validation.reason); // Temporary - replace with toast notification
+    editorStore.cancelConnectionDrawing();
+    return;
+  }
+  
+  // Create connection
+  const newConnection: Connection = {
+    id: '', // Will be auto-generated
+    from: {
+      componentId: drawing.startComponentId,
+      portId: drawing.startPortId,
+    },
+    to: {
+      componentId: endComponentId,
+      portId: endPortId,
+    },
+    flow: {
+      active: false,
+      direction: 'forward',
+      rate: 0,
+    },
+  };
+  
+  diagramStore.addConnection(newConnection);
+  editorStore.cancelConnectionDrawing();
+  
+  console.log('[PIDCanvas] Connection created:', newConnection);
+}
+
+// Validate connection rules
+function validateConnection(
+  fromComponentId: string,
+  fromPortId: string,
+  fromPortType: string,
+  toComponentId: string,
+  toPortId: string,
+  toPortType: string
+): { valid: boolean; reason?: string } {
+  // Can't connect to same component
+  if (fromComponentId === toComponentId) {
+    return { valid: false, reason: 'Cannot connect component to itself' };
+  }
+  
+  // Check port type compatibility
+  const validCombinations = [
+    { from: 'outlet', to: 'inlet' },
+    { from: 'inlet', to: 'outlet' },
+  ];
+  
+  const isValidCombination = validCombinations.some(
+    combo => combo.from === fromPortType && combo.to === toPortType
+  );
+  
+  if (!isValidCombination) {
+    return { 
+      valid: false, 
+      reason: `Cannot connect ${fromPortType} to ${toPortType}. Must connect outlet ↔ inlet` 
+    };
+  }
+  
+  // Check if connection already exists
+  if (diagramStore.connectionExists(fromComponentId, fromPortId, toComponentId, toPortId)) {
+    return { valid: false, reason: 'Connection already exists' };
+  }
+  
+  return { valid: true };
+}
+
+// Get temporary connection start position
+function getTemporaryConnectionStart(): Position {
+  const drawing = editorStore.connectionDrawing;
+  if (!drawing.startComponentId || !drawing.startPortId) {
+    return { x: 0, y: 0 };
+  }
+  return getPortPosition(drawing.startComponentId, drawing.startPortId);
+}
+
+// Update mouse position for temporary line
+function handleCanvasMouseMove(event: MouseEvent) {
+  if (editorStore.isDrawingConnectionActive) {
+    const svgPos = screenToSVG(event.clientX, event.clientY);
+    editorStore.updateConnectionMousePosition(svgPos);
+  }
+}
+
+// Cancel connection on canvas click
+function handleCanvasMouseDown(event: MouseEvent) {
+  if (!props.isEditMode) return;
+  
+  // If drawing connection, cancel it
+  if (editorStore.isDrawingConnectionActive) {
+    editorStore.cancelConnectionDrawing();
+    console.log('[PIDCanvas] Connection cancelled by canvas click');
+    return;
+  }
+  
+  // ... existing drag code ...
+}
+
+// Add keyboard handler for Escape
+function handleKeyDown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && editorStore.isDrawingConnectionActive) {
+    editorStore.cancelConnectionDrawing();
+    console.log('[PIDCanvas] Connection cancelled by Escape key');
+  }
+}
+
+// Setup listeners
 onMounted(() => {
-  // Load initial test components if empty
-  if (diagramStore.components.length === 0) {
-    console.log('[App] Loading initial test diagram...');
-    
-    // Add components
-    const v1 = diagramStore.addComponent({
-      id: '',
-      type: 'valve',
-      position: { x: 150, y: 200 },
-      rotation: 0,
-      ports: [
-        { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
-        { id: 'outlet', type: 'outlet', position: { x: 40, y: 12 } },
-      ],
-      config: {},
-      dataBindings: {},
-    });
-    
-    const p1 = diagramStore.addComponent({
-      id: '',
-      type: 'pump',
-      position: { x: 300, y: 200 },
-      rotation: 0,
-      ports: [
-        { id: 'inlet', type: 'inlet', position: { x: 0, y: 20 } },
-        { id: 'outlet', type: 'outlet', position: { x: 40, y: 20 } },
-      ],
-      config: {},
-      dataBindings: {},
-    });
-    
-    const v2 = diagramStore.addComponent({
-      id: '',
-      type: 'valve',
-      position: { x: 450, y: 200 },
-      rotation: 0,
-      ports: [
-        { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
-        { id: 'outlet', type: 'outlet', position: { x: 40, y: 12 } },
-      ],
-      config: {},
-      dataBindings: {},
-    });
-    
-    // Add connections AFTER components exist
-    diagramStore.addConnection({
-      id: 'PIPE-001',
-      from: { componentId: v1.id, portId: 'outlet' },
-      to: { componentId: p1.id, portId: 'inlet' },
-      flow: { active: false, direction: 'forward', rate: 100 },
-    });
-    
-    diagramStore.addConnection({
-      id: 'PIPE-002',
-      from: { componentId: p1.id, portId: 'outlet' },
-      to: { componentId: v2.id, portId: 'inlet' },
-      flow: { active: false, direction: 'forward', rate: 100 },
-    });
-    
-    console.log('[App] Initial diagram loaded:', {
-      components: diagramStore.components.length,
-      connections: diagramStore.connections.length,
-    });
+  document.addEventListener('mousemove', handleGlobalMouseMove);
+  document.addEventListener('mouseup', handleGlobalMouseUp);
+  document.addEventListener('keydown', handleKeyDown);
+  
+  if (svgRef.value) {
+    svgRef.value.addEventListener('mousemove', handleCanvasMouseMove);
   }
 });
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', handleGlobalMouseMove);
+  document.removeEventListener('mouseup', handleGlobalMouseUp);
+  document.removeEventListener('keydown', handleKeyDown);
+  
+  if (svgRef.value) {
+    svgRef.value.removeEventListener('mousemove', handleCanvasMouseMove);
+  }
+});
+
+
+<style scoped>
+/* ... existing styles ... */
+
+.temporary-connection {
+  pointer-events: none;
+}
+
+.temp-line {
+  animation: dash 1s linear infinite;
+}
+
+@keyframes dash {
+  to { stroke-dashoffset: -10; }
+}
+</style>
