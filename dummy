@@ -1,68 +1,259 @@
-export const useEditorStore = defineStore('editor', () => {
-  // Existing state
-  const mode = ref<EditorMode>('edit');
-  const selectedComponentId = ref<string | null>(null);
-  const selectedConnectionId = ref<string | null>(null); // NEW
-  const isDrawingConnection = ref(false);
-  const showGrid = ref(true);
-  // ... rest of state
-  
-  // Getters
-  const isEditMode = computed(() => mode.value === 'edit');
-  const isRuntimeMode = computed(() => mode.value === 'runtime');
-  const hasSelection = computed(() => 
-    selectedComponentId.value !== null || selectedConnectionId.value !== null
-  );
-  
-  // Actions
-  function selectComponent(componentId: string | null) {
-    selectedComponentId.value = componentId;
-    selectedConnectionId.value = null; // Clear connection selection
-    console.log(`[Editor] Component selected: ${componentId}`);
-  }
-  
-  function selectConnection(connectionId: string | null) {
-    selectedConnectionId.value = connectionId;
-    selectedComponentId.value = null; // Clear component selection
-    console.log(`[Editor] Connection selected: ${connectionId}`);
-  }
-  
-  function clearSelection() {
-    selectedComponentId.value = null;
-    console.log('[Editor] Component selection cleared');
-  }
-  
-  function clearConnectionSelection() {
-    selectedConnectionId.value = null;
-    console.log('[Editor] Connection selection cleared');
-  }
-  
-  function clearAllSelections() {
-    selectedComponentId.value = null;
-    selectedConnectionId.value = null;
-    console.log('[Editor] All selections cleared');
-  }
-  
-  // Update reset
-  function reset() {
-    mode.value = 'edit';
-    selectedComponentId.value = null;
-    selectedConnectionId.value = null;
-    // ... rest of reset
-  }
-  
-  return {
-    // State
-    selectedComponentId,
-    selectedConnectionId,
-    // ... rest
+<template>
+  <aside class="properties-panel">
+    <div class="panel-header">
+      <h3>{{ panelTitle }}</h3>
+      <button @click="handleClose" class="btn-close" title="Close (Esc)">
+        ✕
+      </button>
+    </div>
     
-    // Actions
-    selectComponent,
-    selectConnection,
-    clearSelection,
-    clearConnectionSelection,
-    clearAllSelections,
-    // ... rest
-  };
+    <div class="panel-content" v-if="selectedItem">
+      <!-- Component Properties -->
+      <div v-if="selectedItem.type === 'component'" class="property-sections">
+        <ComponentProperties
+          :component="selectedItem.data"
+          v-model="editedData"
+        />
+      </div>
+      
+      <!-- Connection Properties -->
+      <div v-if="selectedItem.type === 'connection'" class="property-sections">
+        <ConnectionProperties
+          :connection="selectedItem.data"
+          v-model="editedData"
+        />
+      </div>
+    </div>
+    
+    <div class="panel-footer">
+      <button @click="handleSave" class="btn-primary" :disabled="!hasChanges">
+        Save
+      </button>
+      <button @click="handleCancel" class="btn-secondary">
+        Cancel
+      </button>
+      <button @click="handleDelete" class="btn-danger">
+        Delete
+      </button>
+    </div>
+  </aside>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, watch } from 'vue';
+import ComponentProperties from './ComponentProperties.vue';
+import ConnectionProperties from './ConnectionProperties.vue';
+
+interface Props {
+  selectedItem: {
+    type: 'component' | 'connection';
+    data: any;
+  } | null;
+}
+
+const props = defineProps<Props>();
+
+const emit = defineEmits<{
+  save: [updates: any];
+  cancel: [];
+  delete: [];
+}>();
+
+const editedData = ref<any>({});
+const hasChanges = ref(false);
+
+const panelTitle = computed(() => {
+  if (!props.selectedItem) return 'Properties';
+  if (props.selectedItem.type === 'component') {
+    return `Component: ${props.selectedItem.data.id}`;
+  }
+  return `Connection: ${props.selectedItem.data.id}`;
 });
+
+// Watch for selection changes
+watch(() => props.selectedItem, (newItem) => {
+  if (newItem) {
+    editedData.value = JSON.parse(JSON.stringify(newItem.data));
+    hasChanges.value = false;
+  }
+}, { immediate: true, deep: true });
+
+// Watch for edits
+watch(editedData, () => {
+  hasChanges.value = true;
+}, { deep: true });
+
+function handleSave() {
+  emit('save', editedData.value);
+}
+
+function handleCancel() {
+  emit('cancel');
+}
+
+function handleDelete() {
+  if (confirm('Are you sure you want to delete this item?')) {
+    emit('delete');
+  }
+}
+
+function handleClose() {
+  if (hasChanges.value) {
+    if (confirm('You have unsaved changes. Discard them?')) {
+      emit('cancel');
+    }
+  } else {
+    emit('cancel');
+  }
+}
+
+// Keyboard shortcuts
+function handleKeyDown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    handleClose();
+  } else if (event.key === 's' && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    handleSave();
+  }
+}
+
+// Setup keyboard listener
+import { onMounted, onUnmounted } from 'vue';
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown);
+});
+</script>
+
+<style scoped>
+.properties-panel {
+  width: 360px;
+  height: 100%;
+  background: white;
+  border-left: 1px solid var(--color-border-light);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-md);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border-light);
+  background: var(--color-bg-secondary);
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.btn-close {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--color-text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.btn-close:hover {
+  background: var(--color-border-light);
+  color: var(--color-text-primary);
+}
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+}
+
+.panel-footer {
+  padding: var(--spacing-lg);
+  border-top: 1px solid var(--color-border-light);
+  display: flex;
+  gap: var(--spacing-sm);
+  background: var(--color-bg-secondary);
+}
+
+.panel-footer button {
+  flex: 1;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 14px;
+  transition: all var(--transition-fast);
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: white;
+  border: none;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: white;
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-medium);
+}
+
+.btn-secondary:hover {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-border-dark);
+}
+
+.btn-danger {
+  background: #F44336;
+  color: white;
+  border: none;
+}
+
+.btn-danger:hover {
+  background: #D32F2F;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Scrollbar styling */
+.panel-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.panel-content::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+  background: var(--color-border-medium);
+  border-radius: 4px;
+}
+
+.panel-content::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-dark);
+}
+</style>
