@@ -1,319 +1,172 @@
 <template>
-  <div class="component-properties">
+  <div class="connection-properties">
     <!-- Basic Info Section -->
     <div class="property-section">
-      <h4 class="section-title">Basic Information</h4>
+      <h4 class="section-title">Connection Information</h4>
       
       <div class="form-group">
-        <label>Component ID</label>
+        <label>Connection ID</label>
         <input
-          v-model="localComponent.id"
-          type="text"
-          class="form-input"
-          :class="{ 'error': !isIdValid }"
-          placeholder="e.g., V-001"
-        />
-        <span v-if="!isIdValid" class="error-message">ID already exists</span>
-      </div>
-      
-      <div class="form-group">
-        <label>Type</label>
-        <input
-          :value="componentTypeLabel"
+          :value="connection.id"
           type="text"
           class="form-input"
           disabled
         />
       </div>
       
-      <div class="form-row">
-        <div class="form-group">
-          <label>X Position</label>
-          <input
-            :value="localComponent.position.x"
-            type="number"
-            class="form-input"
-            disabled
-          />
+      <div class="connection-info">
+        <div class="endpoint">
+          <span class="label">From:</span>
+          <span class="value">{{ connection.from.componentId }}.{{ connection.from.portId }}</span>
         </div>
-        <div class="form-group">
-          <label>Y Position</label>
-          <input
-            :value="localComponent.position.y"
-            type="number"
-            class="form-input"
-            disabled
-          />
+        <div class="arrow">→</div>
+        <div class="endpoint">
+          <span class="label">To:</span>
+          <span class="value">{{ connection.to.componentId }}.{{ connection.to.portId }}</span>
         </div>
       </div>
     </div>
     
-    <!-- Data Bindings Section -->
+    <!-- Flow Data Binding Section -->
     <div class="property-section">
-      <h4 class="section-title">Data Bindings</h4>
+      <h4 class="section-title">Flow Data Binding</h4>
       
       <div class="form-group">
-        <label>State Binding</label>
+        <label>Flow Sensor Tag</label>
         <input
-          v-model="localComponent.dataBindings.state"
+          v-model="localConnection.flowSensorTag"
           type="text"
           class="form-input"
-          placeholder="e.g., plc1.valves.V001.state"
+          placeholder="e.g., plc1.flow.FT001.value"
         />
-        <span class="help-text">PLC tag for component state</span>
+        <span class="help-text">PLC tag that controls pipe animation</span>
       </div>
       
-      <div class="form-group" v-if="needsValueBinding">
-        <label>Value Binding</label>
+      <div class="form-group">
+        <label>Flow Threshold (to animate)</label>
         <input
-          v-model="localComponent.dataBindings.value"
-          type="text"
+          v-model.number="localConnection.flowThreshold"
+          type="number"
           class="form-input"
-          placeholder="e.g., plc1.sensors.PT001.value"
+          placeholder="1.0"
+          step="0.1"
         />
-        <span class="help-text">PLC tag for sensor value or tank level</span>
+        <span class="help-text">Minimum flow value to start animation (e.g., 1.0 L/min)</span>
       </div>
     </div>
     
-    <!-- Component-Specific Configuration -->
+    <!-- Visual Configuration Section -->
     <div class="property-section">
-      <h4 class="section-title">Configuration</h4>
+      <h4 class="section-title">Visual Configuration</h4>
       
-      <!-- Valve Config -->
-      <template v-if="component.type === 'valve'">
-        <div class="form-group">
-          <label>Valve Type</label>
-          <select v-model="localComponent.config.valveType" class="form-select">
-            <option value="ax">AX (Diamond)</option>
-            <option value="bx">BX (Triangle)</option>
-            <option value="cx">CX (Diamond + Actuator)</option>
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label>Size</label>
-          <input
-            v-model="localComponent.config.size"
-            type="text"
-            class="form-input"
-            placeholder='e.g., 2"'
-          />
-        </div>
-        
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input
-              v-model="localComponent.config.controllable"
-              type="checkbox"
-            />
-            <span>Controllable in Runtime</span>
-          </label>
-        </div>
-      </template>
+      <div class="form-group">
+        <label>Routing Type</label>
+        <select v-model="localConnection.routingType" class="form-select">
+          <option value="straight">Straight Line</option>
+          <option value="orthogonal">Orthogonal (L-shape)</option>
+          <option value="curved">Curved (Bezier)</option>
+          <option value="auto">Auto (Smart)</option>
+        </select>
+      </div>
       
-      <!-- Pump Config -->
-      <template v-if="component.type === 'pump'">
-        <div class="form-group">
-          <label>Pump Type</label>
-          <select v-model="localComponent.config.pumpType" class="form-select">
-            <option value="centrifugal">Centrifugal</option>
-            <option value="gear">Gear</option>
-            <option value="diaphragm">Diaphragm</option>
-            <option value="peristaltic">Peristaltic</option>
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label>Rated RPM</label>
-          <input
-            v-model.number="localComponent.config.ratedRPM"
-            type="number"
-            class="form-input"
-            placeholder="3600"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input
-              v-model="localComponent.config.showRPM"
-              type="checkbox"
-            />
-            <span>Show RPM Display</span>
-          </label>
-        </div>
-      </template>
+      <div class="form-group">
+        <label>Pipe Size</label>
+        <select v-model="localConnection.pipeSize" class="form-select">
+          <option value="small">Small (2px)</option>
+          <option value="medium">Medium (3px)</option>
+          <option value="large">Large (4px)</option>
+        </select>
+      </div>
       
-      <!-- Tank Config -->
-      <template v-if="component.type === 'tank'">
-        <div class="form-group">
-          <label>Capacity</label>
+      <div class="form-group">
+        <label class="checkbox-label">
           <input
-            v-model.number="localComponent.config.capacity"
-            type="number"
-            class="form-input"
-            placeholder="5000"
+            v-model="localConnection.showLabel"
+            type="checkbox"
           />
-        </div>
-        
-        <div class="form-group">
-          <label>Unit</label>
-          <select v-model="localComponent.config.capacityUnit" class="form-select">
-            <option value="L">Liters (L)</option>
-            <option value="gal">Gallons (gal)</option>
-            <option value="m³">Cubic Meters (m³)</option>
-          </select>
-        </div>
-        
-        <div class="form-row">
-          <div class="form-group">
-            <label>Alarm Low (%)</label>
-            <input
-              v-model.number="localComponent.config.alarmLow"
-              type="number"
-              class="form-input"
-              placeholder="10"
-              min="0"
-              max="100"
-            />
-          </div>
-          <div class="form-group">
-            <label>Alarm High (%)</label>
-            <input
-              v-model.number="localComponent.config.alarmHigh"
-              type="number"
-              class="form-input"
-              placeholder="95"
-              min="0"
-              max="100"
-            />
-          </div>
-        </div>
-      </template>
+          <span>Show Flow Value Label</span>
+        </label>
+      </div>
+    </div>
+    
+    <!-- Flow Configuration Section -->
+    <div class="property-section">
+      <h4 class="section-title">Flow Settings</h4>
       
-      <!-- Sensor Config -->
-      <template v-if="component.type === 'sensor'">
-        <div class="form-group">
-          <label>Sensor Type</label>
-          <select v-model="localComponent.config.sensorType" class="form-select">
-            <option value="pressure">Pressure (PT)</option>
-            <option value="temperature">Temperature (TT)</option>
-            <option value="flow">Flow (FT)</option>
-            <option value="level">Level (LT)</option>
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label>Unit</label>
-          <input
-            v-model="localComponent.config.unit"
-            type="text"
-            class="form-input"
-            placeholder="bar, °C, L/min, %"
-          />
-        </div>
-        
-        <div class="form-row">
-          <div class="form-group">
-            <label>Min Value</label>
-            <input
-              v-model.number="localComponent.config.minValue"
-              type="number"
-              class="form-input"
-              placeholder="0"
-            />
-          </div>
-          <div class="form-group">
-            <label>Max Value</label>
-            <input
-              v-model.number="localComponent.config.maxValue"
-              type="number"
-              class="form-input"
-              placeholder="200"
-            />
-          </div>
-        </div>
-        
-        <div class="form-group">
-          <label>Precision (decimals)</label>
-          <input
-            v-model.number="localComponent.config.precision"
-            type="number"
-            class="form-input"
-            placeholder="1"
-            min="0"
-            max="3"
-          />
-        </div>
-      </template>
+      <div class="form-group">
+        <label>Flow Direction</label>
+        <select v-model="localConnection.flow.direction" class="form-select">
+          <option value="forward">Forward (→)</option>
+          <option value="reverse">Reverse (←)</option>
+          <option value="bidirectional">Bidirectional (↔)</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Rated Flow Rate</label>
+        <input
+          v-model.number="localConnection.flow.rate"
+          type="number"
+          class="form-input"
+          placeholder="100"
+        />
+      </div>
+      
+      <div class="form-group">
+        <label>Flow Unit</label>
+        <input
+          v-model="localConnection.flowUnit"
+          type="text"
+          class="form-input"
+          placeholder="L/min, gpm, m³/h"
+        />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { useDiagramStore } from '@/stores/diagram';
-import type { ComponentBase } from '@/core/types';
+import { ref, watch } from 'vue';
+import type { Connection } from '@/core/types';
 
 interface Props {
-  component: ComponentBase;
-  modelValue: ComponentBase;
+  connection: Connection;
+  modelValue: Connection;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  'update:modelValue': [value: ComponentBase];
+  'update:modelValue': [value: Connection];
 }>();
 
-const diagramStore = useDiagramStore();
+// Local editable copy with extended properties
+const localConnection = ref<any>({
+  ...JSON.parse(JSON.stringify(props.connection)),
+  flowSensorTag: props.connection.flowSensorTag || '',
+  flowThreshold: props.connection.flowThreshold || 1.0,
+  routingType: props.connection.routingType || 'auto',
+  pipeSize: props.connection.pipeSize || 'medium',
+  showLabel: props.connection.showLabel || false,
+  flowUnit: props.connection.flowUnit || 'L/min',
+});
 
-// Local editable copy
-const localComponent = ref<ComponentBase>(JSON.parse(JSON.stringify(props.component)));
-
-// Initialize config if missing
-if (!localComponent.value.config) {
-  localComponent.value.config = {};
-}
-if (!localComponent.value.dataBindings) {
-  localComponent.value.dataBindings = {};
+// Ensure flow object exists
+if (!localConnection.value.flow) {
+  localConnection.value.flow = {
+    active: false,
+    direction: 'forward',
+    rate: 0,
+  };
 }
 
 // Watch for changes and emit
-watch(localComponent, (newValue) => {
+watch(localConnection, (newValue) => {
   emit('update:modelValue', newValue);
 }, { deep: true });
-
-// Component type label
-const componentTypeLabel = computed(() => {
-  const types: Record<string, string> = {
-    valve: 'Valve',
-    pump: 'Pump',
-    tank: 'Tank',
-    sensor: 'Sensor',
-  };
-  return types[props.component.type] || props.component.type;
-});
-
-// Check if ID is valid (unique)
-const isIdValid = computed(() => {
-  if (!localComponent.value.id) return false;
-  
-  // Check if ID exists on another component
-  const existingComponent = diagramStore.components.find(
-    c => c.id === localComponent.value.id && c.id !== props.component.id
-  );
-  
-  return !existingComponent;
-});
-
-// Check if component needs value binding (tank, sensor)
-const needsValueBinding = computed(() => {
-  return ['tank', 'sensor'].includes(props.component.type);
-});
 </script>
 
 <style scoped>
-.component-properties {
+.connection-properties {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
@@ -332,6 +185,42 @@ const needsValueBinding = computed(() => {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+}
+
+.connection-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.endpoint {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.endpoint .label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+}
+
+.endpoint .value {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.arrow {
+  font-size: 20px;
   color: var(--color-text-secondary);
 }
 
@@ -375,29 +264,12 @@ const needsValueBinding = computed(() => {
   cursor: not-allowed;
 }
 
-.form-input.error {
-  border-color: #F44336;
-}
-
-.error-message {
-  display: block;
-  margin-top: var(--spacing-xs);
-  font-size: 12px;
-  color: #F44336;
-}
-
 .help-text {
   display: block;
   margin-top: var(--spacing-xs);
   font-size: 12px;
   color: var(--color-text-secondary);
   font-style: italic;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-md);
 }
 
 .checkbox-label {
