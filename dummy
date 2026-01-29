@@ -1,58 +1,16 @@
-<style scoped>
-.properties-panel {
-  width: 360px;
-  height: 100%;
-  background: white;
-  border-left: 1px solid var(--color-border-light);
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--shadow-md);
-  overflow: hidden; /* ADD THIS */
-}
+// Watch for selection changes - use immediate and deep
+watch(() => props.selectedItem, (newItem) => {
+  if (newItem) {
+    // Force deep clone to break reactivity issues
+    editedData.value = JSON.parse(JSON.stringify(newItem.data));
+    hasChanges.value = false;
+  }
+}, { immediate: true, deep: true });
 
-.panel-header {
-  flex-shrink: 0; /* ADD THIS - prevent header from shrinking */
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-lg);
-  border-bottom: 1px solid var(--color-border-light);
-  background: var(--color-bg-secondary);
-}
-
-.panel-content {
-  flex: 1;
-  overflow-y: auto; /* This should already exist */
-  overflow-x: hidden; /* ADD THIS */
-  padding: var(--spacing-lg);
-}
-
-.panel-footer {
-  flex-shrink: 0; /* ADD THIS - prevent footer from shrinking */
-  padding: var(--spacing-lg);
-  border-top: 1px solid var(--color-border-light);
-  display: flex;
-  gap: var(--spacing-sm);
-  background: var(--color-bg-secondary);
-}
-
-/* Make scrollbar always visible */
-.panel-content::-webkit-scrollbar {
-  width: 8px;
-  background: var(--color-bg-secondary);
-}
-
-.panel-content::-webkit-scrollbar-track {
-  background: var(--color-bg-secondary);
-  border-left: 1px solid var(--color-border-light);
-}
-
-.panel-content::-webkit-scrollbar-thumb {
-  background: var(--color-border-medium);
-  border-radius: 4px;
-}
-
-.panel-content::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-dark);
-}
-</style>
+// Also watch the actual data for updates
+watch(() => props.selectedItem?.data, (newData) => {
+  if (newData) {
+    editedData.value = JSON.parse(JSON.stringify(newData));
+    hasChanges.value = false;
+  }
+}, { immediate: true, deep: true });
