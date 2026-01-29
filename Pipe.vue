@@ -1,150 +1,218 @@
 <template>
-  <g class="pid-pipe">
-    <!-- Main pipe line -->
-    <line
-      :x1="fromPosition.x"
-      :y1="fromPosition.y"
-      :x2="toPosition.x"
-      :y2="toPosition.y"
+  <g class="pipe" :class="{ 'selected': isSelected }">
+    <!-- Selection outline (behind main pipe) -->
+    <path
+      v-if="isSelected"
+      :d="pipePath"
+      stroke="#2196F3"
+      stroke-width="8"
       fill="none"
-      :stroke="strokeColor"
-      :stroke-width="strokeWidth"
-      class="pipe-line"
+      opacity="0.3"
+      class="selection-outline"
     />
     
-    <!-- Flow animation (moving dots) -->
+    <!-- Main pipe path -->
+    <path
+      :d="pipePath"
+      :stroke="pipeColor"
+      :stroke-width="pipeWidth"
+      fill="none"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="pipe-path"
+    />
+    
+    <!-- Flow animation dots -->
     <g v-if="flowing" class="flow-animation">
       <circle
-        v-for="(dot, i) in flowDots"
-        :key="i"
+        v-for="dot in flowDots"
+        :key="dot.id"
         :cx="dot.x"
         :cy="dot.y"
-        r="2"
-        fill="#2196F3"
-        :opacity="dot.opacity"
-      />
+        r="3"
+        :fill="flowDotColor"
+        class="flow-dot"
+      >
+        <animateMotion
+          :path="pipePath"
+          :dur="animationDuration"
+          repeatCount="indefinite"
+          :begin="dot.offset"
+        />
+      </circle>
     </g>
-    
-    <!-- Arrow indicating flow direction -->
-    <path
-      v-if="flowing"
-      :d="arrowPath"
-      fill="#2196F3"
-      class="flow-arrow"
-    />
   </g>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type { Position } from '@/core/types';
 
 interface Props {
   fromPosition: Position;
   toPosition: Position;
   flowing?: boolean;
-  strokeWidth?: number;
+  routingType?: 'straight' | 'orthogonal' | 'curved' | 'auto';
+  isSelected?: boolean;
+  pipeSize?: 'small' | 'medium' | 'large';
 }
 
 const props = withDefaults(defineProps<Props>(), {
   flowing: false,
-  strokeWidth: 4,
+  routingType: 'auto',
+  isSelected: false,
+  pipeSize: 'medium',
 });
 
-const strokeColor = computed(() => {
-  return props.flowing ? '#2196F3' : '#666';
-});
-
-// Flow animation
-const flowDots = ref<Array<{ x: number; y: number; opacity: number }>>([]);
-let animationFrame: number | null = null;
-
-function startFlowAnimation() {
-  if (animationFrame) return; // Already running
-  
-  const numDots = 5;
-  
-  const animate = () => {
-    const { fromPosition, toPosition } = props;
-    const dx = toPosition.x - fromPosition.x;
-    const dy = toPosition.y - fromPosition.y;
-    const length = Math.sqrt(dx * dx + dy * dy);
-    
-    if (length === 0) {
-      animationFrame = requestAnimationFrame(animate);
-      return;
-    }
-    
-    flowDots.value = Array.from({ length: numDots }, (_, i) => {
-      const offset = (Date.now() / 20 + i * (length / numDots)) % length;
-      const progress = offset / length;
-      
-      return {
-        x: fromPosition.x + dx * progress,
-        y: fromPosition.y + dy * progress,
-        opacity: Math.sin(progress * Math.PI) * 0.8 + 0.2,
-      };
-    });
-    
-    animationFrame = requestAnimationFrame(animate);
+// Pipe width based on size
+const pipeWidth = computed(() => {
+  const sizes = {
+    small: 2,
+    medium: 3,
+    large: 4,
   };
-  
-  animate();
-}
-
-function stopFlowAnimation() {
-  if (animationFrame !== null) {
-    cancelAnimationFrame(animationFrame);
-    animationFrame = null;
-  }
-  flowDots.value = [];
-}
-
-watch(() => props.flowing, (newVal) => {
-  if (newVal) {
-    startFlowAnimation();
-  } else {
-    stopFlowAnimation();
-  }
-}, { immediate: true });
-
-onUnmounted(() => {
-  stopFlowAnimation();
+  return props.isSelected ? sizes[props.pipeSize] + 1 : sizes[props.pipeSize];
 });
 
-// Arrow for flow direction
-const arrowPath = computed(() => {
-  const { fromPosition, toPosition } = props;
-  const midX = (fromPosition.x + toPosition.x) / 2;
-  const midY = (fromPosition.y + toPosition.y) / 2;
+// Pipe color (blue for normal, darker when selected)
+const pipeColor = computed(() => {
+  return props.isSelected ? '#1976D2' : '#424242';
+});
+
+// Flow dot color
+const flowDotColor = computed(() => {
+  return props.flowing ? '#2196F3' : '#9E9E9E';
+});
+
+// Animation duration (faster when flowing)
+const animationDuration = computed(() => {
+  return props.flowing ? '2s' : '4s';
+});
+
+// Calculate pipe path
+const pipePath = computed(() => {
+  const from = props.fromPosition;
+  const to = props.toPosition;
   
-  const dx = toPosition.x - fromPosition.x;
-  const dy = toPosition.y - fromPosition.y;
-  const angle = Math.atan2(dy, dx);
+  switch (props.routingType) {
+    case 'straight':
+      return calculateStraightPath(from, to);
+    
+    case 'orthogonal':
+      return calculateOrthogonalPath(from, to);
+    
+    case 'curved':
+      return calculateCurvedPath(from, to);
+    
+    case 'auto':
+    default:
+      return calculateAutoPath(from, to);
+  }
+});
+
+// Straight line path
+function calculateStraightPath(from: Position, to: Position): string {
+  return `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
+}
+
+// Orthogonal (L-shaped) path
+function calculateOrthogonalPath(from: Position, to: Position): string {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
   
-  const arrowSize = 8;
-  const x1 = midX + arrowSize * Math.cos(angle);
-  const y1 = midY + arrowSize * Math.sin(angle);
-  const x2 = midX + arrowSize * 0.5 * Math.cos(angle + 2.5);
-  const y2 = midY + arrowSize * 0.5 * Math.sin(angle + 2.5);
-  const x3 = midX + arrowSize * 0.5 * Math.cos(angle - 2.5);
-  const y3 = midY + arrowSize * 0.5 * Math.sin(angle - 2.5);
+  // Determine if horizontal-first or vertical-first based on distance
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Horizontal first
+    const midX = from.x + dx / 2;
+    return `M ${from.x} ${from.y} L ${midX} ${from.y} L ${midX} ${to.y} L ${to.x} ${to.y}`;
+  } else {
+    // Vertical first
+    const midY = from.y + dy / 2;
+    return `M ${from.x} ${from.y} L ${from.x} ${midY} L ${to.x} ${midY} L ${to.x} ${to.y}`;
+  }
+}
+
+// Curved (bezier) path
+function calculateCurvedPath(from: Position, to: Position): string {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
   
-  return `M ${x1} ${y1} L ${x2} ${y2} L ${x3} ${y3} Z`;
+  // Control points for smooth curve
+  const cp1x = from.x + dx * 0.5;
+  const cp1y = from.y;
+  const cp2x = from.x + dx * 0.5;
+  const cp2y = to.y;
+  
+  return `M ${from.x} ${from.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${to.x} ${to.y}`;
+}
+
+// Auto (smart routing)
+function calculateAutoPath(from: Position, to: Position): string {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  
+  // If close and roughly aligned, use straight
+  if (distance < 100 && (Math.abs(dx) < 20 || Math.abs(dy) < 20)) {
+    return calculateStraightPath(from, to);
+  }
+  
+  // If horizontal or vertical alignment, use orthogonal
+  if (Math.abs(dx) < 20 || Math.abs(dy) < 20) {
+    return calculateOrthogonalPath(from, to);
+  }
+  
+  // Otherwise use curved for smooth appearance
+  return calculateCurvedPath(from, to);
+}
+
+// Flow animation dots
+const flowDots = ref([
+  { id: 1, x: 0, y: 0, offset: '0s' },
+  { id: 2, x: 0, y: 0, offset: '0.5s' },
+  { id: 3, x: 0, y: 0, offset: '1s' },
+  { id: 4, x: 0, y: 0, offset: '1.5s' },
+]);
+
+// Update dot positions when path changes
+watch([() => props.fromPosition, () => props.toPosition], () => {
+  // Dots will be positioned by animateMotion, initial position doesn't matter much
+  flowDots.value.forEach((dot, index) => {
+    dot.x = props.fromPosition.x;
+    dot.y = props.fromPosition.y;
+  });
 });
 </script>
 
 <style scoped>
-.pipe-line {
-  transition: stroke 0.3s ease;
+.pipe {
+  pointer-events: stroke;
+  cursor: pointer;
+  transition: all var(--transition-fast);
 }
 
-.pipe-line:hover {
-  stroke-width: 6;
-  filter: brightness(1.1);
+.pipe:hover .pipe-path {
+  filter: brightness(1.2);
+  stroke-width: 4;
 }
 
-.flow-arrow {
-  opacity: 0.8;
+.pipe.selected .pipe-path {
+  stroke: #1976D2;
+}
+
+.selection-outline {
+  pointer-events: none;
+}
+
+.pipe-path {
+  transition: stroke var(--transition-fast), stroke-width var(--transition-fast);
+}
+
+.flow-animation {
+  pointer-events: none;
+}
+
+.flow-dot {
+  filter: drop-shadow(0 0 2px rgba(33, 150, 243, 0.8));
 }
 </style>
