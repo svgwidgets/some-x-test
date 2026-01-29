@@ -1,148 +1,68 @@
-<template>
-  <div class="app">
-    <Toolbar />
-    
-    <div class="main-content" :class="{ 
-      'edit-mode': editorStore.isEditMode,
-      'runtime-mode': editorStore.isRuntimeMode,
-      'has-selection': showPropertiesPanel 
-    }">
-      <!-- Palette: Only in edit mode -->
-      <ComponentPalette v-if="editorStore.isEditMode" />
-      
-      <!-- Canvas: Always visible, expands when no properties -->
-      <PIDCanvas
-        :components="diagramStore.components"
-        :connections="diagramStore.connections"
-        :componentStates="runtimeStore.componentStates"
-        :pumpRPM="runtimeStore.pumpRPM"
-        :tankLevels="runtimeStore.tankLevels"
-        :sensorValues="runtimeStore.sensorValues"
-        :isEditMode="editorStore.isEditMode"
-        :showGrid="editorStore.showGrid"
-        @componentClick="handleComponentClick"
-        @connectionClick="handleConnectionClick"
-      />
-      
-      <!-- Properties Panel: Only when something selected in edit mode -->
-      <PropertiesPanel 
-        v-if="showPropertiesPanel"
-        :selectedItem="selectedItem"
-        @save="handlePropertiesSave"
-        @cancel="handlePropertiesCancel"
-        @delete="handleDelete"
-      />
-    </div>
-  </div>
-</template>
-
-<script setup lang="ts">
-import { computed } from 'vue';
-import { useEditorStore } from '@/stores/editor';
-import { useDiagramStore } from '@/stores/diagram';
-import { useRuntimeStore } from '@/stores/runtime';
-import Toolbar from './components/editor/Toolbar.vue';
-import ComponentPalette from './components/editor/ComponentPalette.vue';
-import PIDCanvas from './components/PIDCanvas.vue';
-import PropertiesPanel from './components/editor/PropertiesPanel.vue';
-
-const editorStore = useEditorStore();
-const diagramStore = useDiagramStore();
-const runtimeStore = useRuntimeStore();
-
-// Show properties panel only in edit mode with selection
-const showPropertiesPanel = computed(() => {
-  return editorStore.isEditMode && (
-    editorStore.selectedComponentId !== null || 
-    editorStore.selectedConnectionId !== null
+export const useEditorStore = defineStore('editor', () => {
+  // Existing state
+  const mode = ref<EditorMode>('edit');
+  const selectedComponentId = ref<string | null>(null);
+  const selectedConnectionId = ref<string | null>(null); // NEW
+  const isDrawingConnection = ref(false);
+  const showGrid = ref(true);
+  // ... rest of state
+  
+  // Getters
+  const isEditMode = computed(() => mode.value === 'edit');
+  const isRuntimeMode = computed(() => mode.value === 'runtime');
+  const hasSelection = computed(() => 
+    selectedComponentId.value !== null || selectedConnectionId.value !== null
   );
+  
+  // Actions
+  function selectComponent(componentId: string | null) {
+    selectedComponentId.value = componentId;
+    selectedConnectionId.value = null; // Clear connection selection
+    console.log(`[Editor] Component selected: ${componentId}`);
+  }
+  
+  function selectConnection(connectionId: string | null) {
+    selectedConnectionId.value = connectionId;
+    selectedComponentId.value = null; // Clear component selection
+    console.log(`[Editor] Connection selected: ${connectionId}`);
+  }
+  
+  function clearSelection() {
+    selectedComponentId.value = null;
+    console.log('[Editor] Component selection cleared');
+  }
+  
+  function clearConnectionSelection() {
+    selectedConnectionId.value = null;
+    console.log('[Editor] Connection selection cleared');
+  }
+  
+  function clearAllSelections() {
+    selectedComponentId.value = null;
+    selectedConnectionId.value = null;
+    console.log('[Editor] All selections cleared');
+  }
+  
+  // Update reset
+  function reset() {
+    mode.value = 'edit';
+    selectedComponentId.value = null;
+    selectedConnectionId.value = null;
+    // ... rest of reset
+  }
+  
+  return {
+    // State
+    selectedComponentId,
+    selectedConnectionId,
+    // ... rest
+    
+    // Actions
+    selectComponent,
+    selectConnection,
+    clearSelection,
+    clearConnectionSelection,
+    clearAllSelections,
+    // ... rest
+  };
 });
-
-// Get selected item (component or connection)
-const selectedItem = computed(() => {
-  if (editorStore.selectedComponentId) {
-    const component = diagramStore.components.find(c => c.id === editorStore.selectedComponentId);
-    return component ? { type: 'component', data: component } : null;
-  }
-  
-  if (editorStore.selectedConnectionId) {
-    const connection = diagramStore.connections.find(c => c.id === editorStore.selectedConnectionId);
-    return connection ? { type: 'connection', data: connection } : null;
-  }
-  
-  return null;
-});
-
-function handleComponentClick(componentId: string) {
-  editorStore.selectComponent(componentId);
-  editorStore.clearConnectionSelection(); // Add this to store
-}
-
-function handleConnectionClick(connectionId: string) {
-  editorStore.selectConnection(connectionId); // Add this to store
-  editorStore.clearSelection(); // Clear component selection
-}
-
-function handlePropertiesSave(updates: any) {
-  if (selectedItem.value?.type === 'component') {
-    diagramStore.updateComponent(editorStore.selectedComponentId!, updates);
-  } else if (selectedItem.value?.type === 'connection') {
-    diagramStore.updateConnection(editorStore.selectedConnectionId!, updates);
-  }
-  
-  // Clear selection (close panel)
-  editorStore.clearSelection();
-  editorStore.clearConnectionSelection();
-  
-  console.log('[App] Properties saved and panel closed');
-}
-
-function handlePropertiesCancel() {
-  // Just close panel without saving
-  editorStore.clearSelection();
-  editorStore.clearConnectionSelection();
-  
-  console.log('[App] Properties cancelled and panel closed');
-}
-
-function handleDelete() {
-  if (selectedItem.value?.type === 'component') {
-    diagramStore.removeComponent(editorStore.selectedComponentId!);
-  } else if (selectedItem.value?.type === 'connection') {
-    diagramStore.removeConnection(editorStore.selectedConnectionId!);
-  }
-  
-  editorStore.clearSelection();
-  editorStore.clearConnectionSelection();
-  
-  console.log('[App] Item deleted');
-}
-</script>
-
-<style scoped>
-.app {
-  display: grid;
-  grid-template-rows: 60px 1fr;
-  height: 100vh;
-  width: 100vw;
-  overflow: hidden;
-}
-
-/* Edit mode: Palette visible */
-.main-content.edit-mode {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  transition: grid-template-columns var(--transition-normal);
-}
-
-/* Edit mode WITH selection: Palette + Canvas + Properties */
-.main-content.edit-mode.has-selection {
-  grid-template-columns: 280px 1fr 360px;
-}
-
-/* Runtime mode: Just canvas */
-.main-content.runtime-mode {
-  display: grid;
-  grid-template-columns: 1fr;
-}
-</style>
