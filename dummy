@@ -1,49 +1,28 @@
 <template>
-  <div class="component-properties">
+  <div class="connection-properties">
     <!-- Basic Info Section -->
     <div class="property-section">
-      <h4 class="section-title">Component Information</h4>
+      <h4 class="section-title">Connection Information</h4>
       
       <div class="form-group">
-        <label>Component ID</label>
+        <label>Connection ID</label>
         <input
-          v-model="localComponent.id"
-          type="text"
-          class="form-input"
-          :class="{ 'error': !isIdValid }"
-          placeholder="e.g., V-001"
-        />
-        <span v-if="!isIdValid" class="error-message">ID already exists</span>
-      </div>
-      
-      <div class="form-group">
-        <label>Type</label>
-        <input
-          :value="componentTypeLabel"
+          :value="connection.id"
           type="text"
           class="form-input"
           disabled
         />
       </div>
       
-      <div class="form-row">
-        <div class="form-group">
-          <label>X Position</label>
-          <input
-            :value="localComponent.position?.x || 0"
-            type="number"
-            class="form-input"
-            disabled
-          />
+      <div class="connection-info">
+        <div class="endpoint">
+          <span class="label">From:</span>
+          <span class="value">{{ connection.from.componentId }}.{{ connection.from.portId }}</span>
         </div>
-        <div class="form-group">
-          <label>Y Position</label>
-          <input
-            :value="localComponent.position?.y || 0"
-            type="number"
-            class="form-input"
-            disabled
-          />
+        <div class="arrow">→</div>
+        <div class="endpoint">
+          <span class="label">To:</span>
+          <span class="value">{{ connection.to.componentId }}.{{ connection.to.portId }}</span>
         </div>
       </div>
     </div>
@@ -55,73 +34,45 @@
       <div class="form-group">
         <label>Channel</label>
         <input
-          v-model="localComponent.channel"
+          v-model="localConnection.channel"
           type="text"
           class="form-input"
-          placeholder="e.g., plc1.V001"
+          placeholder="e.g., plc1.flow.FT001"
         />
-        <span class="help-text">Data source path for this component</span>
+        <span class="help-text">Data source for flow animation</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { useDiagramStore } from '@/stores/diagram';
-import type { ComponentBase } from '@/core/types';
+import { ref, watch } from 'vue';
+import type { Connection } from '@/core/types';
 
 interface Props {
-  component: ComponentBase;
-  modelValue: ComponentBase;
+  connection: Connection;
+  modelValue: Connection;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  'update:modelValue': [value: ComponentBase];
+  'update:modelValue': [value: Connection];
 }>();
 
-const diagramStore = useDiagramStore();
-
 // Local editable copy
-const localComponent = ref<any>(JSON.parse(JSON.stringify(props.component)));
-
-// Ensure channel exists
-if (!localComponent.value.channel) {
-  localComponent.value.channel = '';
-}
+const localConnection = ref<any>({
+  ...JSON.parse(JSON.stringify(props.connection)),
+  channel: props.connection.channel || '',
+});
 
 // Watch for changes and emit
-watch(localComponent, (newValue) => {
+watch(localConnection, (newValue) => {
   emit('update:modelValue', newValue);
 }, { deep: true });
-
-// Component type label
-const componentTypeLabel = computed(() => {
-  const types: Record<string, string> = {
-    valve: 'Valve',
-    pump: 'Pump',
-    tank: 'Tank',
-    sensor: 'Sensor',
-  };
-  return types[props.component.type] || props.component.type;
-});
-
-// Check if ID is valid (unique)
-const isIdValid = computed(() => {
-  if (!localComponent.value.id) return false;
-  
-  // Check if ID exists on another component
-  const existingComponent = diagramStore.components.find(
-    c => c.id === localComponent.value.id && c.id !== props.component.id
-  );
-  
-  return !existingComponent;
-});
 </script>
 
 <style scoped>
-.component-properties {
+.connection-properties {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
@@ -140,6 +91,42 @@ const isIdValid = computed(() => {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+}
+
+.connection-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.endpoint {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.endpoint .label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+}
+
+.endpoint .value {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.arrow {
+  font-size: 20px;
   color: var(--color-text-secondary);
 }
 
@@ -181,28 +168,11 @@ const isIdValid = computed(() => {
   cursor: not-allowed;
 }
 
-.form-input.error {
-  border-color: #F44336;
-}
-
-.error-message {
-  display: block;
-  margin-top: var(--spacing-xs);
-  font-size: 12px;
-  color: #F44336;
-}
-
 .help-text {
   display: block;
   margin-top: var(--spacing-xs);
   font-size: 12px;
   color: var(--color-text-secondary);
   font-style: italic;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-md);
 }
 </style>
