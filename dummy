@@ -1,178 +1,58 @@
-<template>
-  <div class="connection-properties">
-    <!-- Basic Info Section -->
-    <div class="property-section">
-      <h4 class="section-title">Connection Information</h4>
-      
-      <div class="form-group">
-        <label>Connection ID</label>
-        <input
-          :value="connection.id"
-          type="text"
-          class="form-input"
-          disabled
-        />
-      </div>
-      
-      <div class="connection-info">
-        <div class="endpoint">
-          <span class="label">From:</span>
-          <span class="value">{{ connection.from.componentId }}.{{ connection.from.portId }}</span>
-        </div>
-        <div class="arrow">→</div>
-        <div class="endpoint">
-          <span class="label">To:</span>
-          <span class="value">{{ connection.to.componentId }}.{{ connection.to.portId }}</span>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Data Channel Section -->
-    <div class="property-section">
-      <h4 class="section-title">Data Channel</h4>
-      
-      <div class="form-group">
-        <label>Channel</label>
-        <input
-          v-model="localConnection.channel"
-          type="text"
-          class="form-input"
-          placeholder="e.g., plc1.flow.FT001"
-        />
-        <span class="help-text">Data source for flow animation</span>
-      </div>
-    </div>
-  </div>
-</template>
-
-<script setup lang="ts">
-import { ref, watch } from 'vue';
-import type { Connection } from '@/core/types';
-
-interface Props {
-  connection: Connection;
-  modelValue: Connection;
-}
-
-const props = defineProps<Props>();
-const emit = defineEmits<{
-  'update:modelValue': [value: Connection];
-}>();
-
-// Local editable copy
-const localConnection = ref<any>({
-  ...JSON.parse(JSON.stringify(props.connection)),
-  channel: props.connection.channel || '',
-});
-
-// Watch for changes and emit
-watch(localConnection, (newValue) => {
-  emit('update:modelValue', newValue);
-}, { deep: true });
-</script>
-
 <style scoped>
-.connection-properties {
+.properties-panel {
+  width: 360px;
+  height: 100%;
+  background: white;
+  border-left: 1px solid var(--color-border-light);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden; /* ADD THIS */
 }
 
-.property-section {
-  background: white;
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-md);
+.panel-header {
+  flex-shrink: 0; /* ADD THIS - prevent header from shrinking */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border-light);
+  background: var(--color-bg-secondary);
+}
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto; /* This should already exist */
+  overflow-x: hidden; /* ADD THIS */
   padding: var(--spacing-lg);
 }
 
-.section-title {
-  margin: 0 0 var(--spacing-md) 0;
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--color-text-secondary);
-}
-
-.connection-info {
+.panel-footer {
+  flex-shrink: 0; /* ADD THIS - prevent footer from shrinking */
+  padding: var(--spacing-lg);
+  border-top: 1px solid var(--color-border-light);
   display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
+  gap: var(--spacing-sm);
   background: var(--color-bg-secondary);
-  border-radius: var(--radius-sm);
-  font-size: 13px;
 }
 
-.endpoint {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.endpoint .label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-}
-
-.endpoint .value {
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  color: var(--color-primary);
-  font-weight: 600;
-}
-
-.arrow {
-  font-size: 20px;
-  color: var(--color-text-secondary);
-}
-
-.form-group {
-  margin-bottom: var(--spacing-md);
-}
-
-.form-group:last-child {
-  margin-bottom: 0;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: var(--spacing-xs);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.form-input {
-  width: 100%;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: 1px solid var(--color-border-medium);
-  border-radius: var(--radius-sm);
-  font-size: 14px;
-  font-family: inherit;
-  transition: all var(--transition-fast);
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
-}
-
-.form-input:disabled {
+/* Make scrollbar always visible */
+.panel-content::-webkit-scrollbar {
+  width: 8px;
   background: var(--color-bg-secondary);
-  color: var(--color-text-secondary);
-  cursor: not-allowed;
 }
 
-.help-text {
-  display: block;
-  margin-top: var(--spacing-xs);
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  font-style: italic;
+.panel-content::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+  border-left: 1px solid var(--color-border-light);
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+  background: var(--color-border-medium);
+  border-radius: 4px;
+}
+
+.panel-content::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-dark);
 }
 </style>
