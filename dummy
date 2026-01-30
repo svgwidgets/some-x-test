@@ -1,98 +1,165 @@
 /**
- * Base I/O Component
+ * Digital I/O Component
  * 
- * Foundation for all P&ID components with data binding.
- * Represents a single I/O point (analog or digital) that can receive
- * real-time data from PLCs, SCADA systems, or other data sources.
+ * Represents binary/discrete values (true/false, on/off, open/closed).
+ * Used for components like valves, motors, switches, relays, etc.
  */
 
-export interface IOMetadata {
-  /** Last update timestamp (Unix ms) */
-  timestamp?: number;
+import { BaseIOComponent, IOComponent, IOMetadata } from './IOComponent';
+
+export interface DigitalStateMapping {
+  /** Label when value is true (e.g., "Open", "On", "Running") */
+  true: string;
   
-  /** Data quality indicator */
-  quality?: 'good' | 'bad' | 'uncertain';
+  /** Label when value is false (e.g., "Closed", "Off", "Stopped") */
+  false: string;
   
-  /** Source of the data (e.g., "PLC1", "Modbus", "OPC-UA") */
-  source?: string;
-  
-  /** Additional metadata */
-  [key: string]: any;
+  /** Optional intermediate states */
+  transitioning?: string;
+  fault?: string;
 }
 
-export interface IOComponent<T = any> {
-  /** Unique identifier for this I/O point */
-  id: string;
+export interface DigitalIO extends IOComponent<boolean> {
+  ioType: 'digital';
   
-  /** Data channel/tag path (e.g., "plc1.valves.V001.state") */
-  channel: string;
+  /** State labels for display */
+  states: DigitalStateMapping;
   
-  /** Current value of the I/O point */
-  value: T;
+  /** Optional: Is this output controllable? */
+  controllable?: boolean;
   
-  /** Type discriminator for runtime type checking */
-  ioType: 'digital' | 'analog';
-  
-  /** Optional metadata about the data */
-  metadata?: IOMetadata;
-  
-  /** Human-readable description */
-  description?: string;
+  /** Optional: Current transition state */
+  transitioning?: boolean;
 }
 
 /**
- * Base class for I/O components (can be extended)
+ * Digital I/O implementation
  */
-export abstract class BaseIOComponent<T = any> implements IOComponent<T> {
-  id: string;
-  channel: string;
-  value: T;
-  ioType: 'digital' | 'analog';
-  metadata?: IOMetadata;
-  description?: string;
+export class DigitalIOComponent extends BaseIOComponent<boolean> implements DigitalIO {
+  ioType: 'digital' as const;
+  states: DigitalStateMapping;
+  controllable: boolean;
+  transitioning: boolean;
   
   constructor(config: {
     id: string;
     channel: string;
-    value: T;
-    ioType: 'digital' | 'analog';
+    value: boolean;
+    states: DigitalStateMapping;
+    controllable?: boolean;
     description?: string;
   }) {
-    this.id = config.id;
-    this.channel = config.channel;
-    this.value = config.value;
-    this.ioType = config.ioType;
-    this.description = config.description;
-    this.metadata = {
-      timestamp: Date.now(),
-      quality: 'good',
-    };
+    super({
+      id: config.id,
+      channel: config.channel,
+      value: config.value,
+      ioType: 'digital',
+      description: config.description,
+    });
+    
+    this.states = config.states;
+    this.controllable = config.controllable ?? false;
+    this.transitioning = false;
   }
   
   /**
-   * Update the I/O value with new data
+   * Get current state label
    */
-  updateValue(newValue: T, metadata?: Partial<IOMetadata>): void {
-    this.value = newValue;
-    this.metadata = {
-      ...this.metadata,
-      ...metadata,
-      timestamp: Date.now(),
-    };
+  getStateLabel(): string {
+    if (this.transitioning && this.states.transitioning) {
+      return this.states.transitioning;
+    }
+    return this.value ? this.states.true : this.states.false;
   }
   
   /**
-   * Check if data is fresh (updated within threshold)
+   * Toggle the value (if controllable)
    */
-  isFresh(thresholdMs: number = 5000): boolean {
-    if (!this.metadata?.timestamp) return false;
-    return (Date.now() - this.metadata.timestamp) < thresholdMs;
+  toggle(): void {
+    if (!this.controllable) {
+      throw new Error(`Digital I/O ${this.id} is not controllable`);
+    }
+    this.updateValue(!this.value);
   }
   
   /**
-   * Check if data quality is good
+   * Set to true state
    */
-  hasGoodQuality(): boolean {
-    return this.metadata?.quality === 'good';
+  setTrue(): void {
+    if (!this.controllable) {
+      throw new Error(`Digital I/O ${this.id} is not controllable`);
+    }
+    this.updateValue(true);
+  }
+  
+  /**
+   * Set to false state
+   */
+  setFalse(): void {
+    if (!this.controllable) {
+      throw new Error(`Digital I/O ${this.id} is not controllable`);
+    }
+    this.updateValue(false);
+  }
+  
+  /**
+   * Start transition animation
+   */
+  startTransition(): void {
+    this.transitioning = true;
+  }
+  
+  /**
+   * End transition animation
+   */
+  endTransition(): void {
+    this.transitioning = false;
   }
 }
+
+/**
+ * Factory function for creating digital I/O
+ */
+export function createDigitalIO(config: {
+  id: string;
+  channel: string;
+  initialValue?: boolean;
+  states: DigitalStateMapping;
+  controllable?: boolean;
+  description?: string;
+}): DigitalIO {
+  return new DigitalIOComponent({
+    ...config,
+    value: config.initialValue ?? false,
+  });
+}
+
+/**
+ * Common digital I/O presets
+ */
+export const DIGITAL_IO_PRESETS = {
+  valve: {
+    states: { true: 'Open', false: 'Closed', transitioning: 'Moving' },
+    controllable: true,
+  },
+  pump: {
+    states: { true: 'Running', false: 'Stopped', transitioning: 'Starting' },
+    controllable: true,
+  },
+  motor: {
+    states: { true: 'On', false: 'Off', transitioning: 'Starting' },
+    controllable: true,
+  },
+  switch: {
+    states: { true: 'On', false: 'Off' },
+    controllable: true,
+  },
+  alarm: {
+    states: { true: 'Active', false: 'Normal' },
+    controllable: false,
+  },
+  indicator: {
+    states: { true: 'On', false: 'Off' },
+    controllable: false,
+  },
+};
