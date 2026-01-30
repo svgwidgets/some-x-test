@@ -1,50 +1,83 @@
 /**
- * Visual I/O Component
+ * Color Mapper
  * 
- * Combines I/O abstraction with visual definition.
- * This is the complete component that can be rendered on canvas.
+ * Maps I/O states to visual colors.
  */
 
 import type { IOComponent } from '../io/IOComponent';
-import type { VisualDefinition, Position } from './VisualDefinition';
+import { isDigitalIO, isAnalogIO } from '../io';
+import type { AnalogState } from '../io/AnalogIO';
 
-export interface VisualIOComponent {
-  /** Unique component ID */
-  id: string;
+export interface ColorScheme {
+  digital: {
+    true: string;
+    false: string;
+    transitioning?: string;
+    fault?: string;
+  };
+  analog: {
+    normal: string;
+    'warning-low': string;
+    'warning-high': string;
+    'alarm-low': string;
+    'alarm-high': string;
+    'alarm-low-low': string;
+    'alarm-high-high': string;
+    'out-of-range': string;
+  };
+}
+
+export const DEFAULT_COLOR_SCHEME: ColorScheme = {
+  digital: {
+    true: '#4CAF50',      // Green - Open/On
+    false: '#F44336',     // Red - Closed/Off
+    transitioning: '#FFC107', // Yellow - Moving
+    fault: '#9C27B0',     // Purple - Fault
+  },
+  analog: {
+    normal: '#4CAF50',
+    'warning-low': '#FFC107',
+    'warning-high': '#FFC107',
+    'alarm-low': '#F44336',
+    'alarm-high': '#F44336',
+    'alarm-low-low': '#D32F2F',
+    'alarm-high-high': '#D32F2F',
+    'out-of-range': '#9C27B0',
+  },
+};
+
+/**
+ * Get color for I/O component
+ */
+export function getIOColor(io: IOComponent, scheme: ColorScheme = DEFAULT_COLOR_SCHEME): string {
+  if (isDigitalIO(io)) {
+    if (io.transitioning && scheme.digital.transitioning) {
+      return scheme.digital.transitioning;
+    }
+    return io.value ? scheme.digital.true : scheme.digital.false;
+  }
   
-  /** I/O data binding */
-  io: IOComponent;
+  if (isAnalogIO(io)) {
+    const state = io.getState();
+    return scheme.analog[state];
+  }
   
-  /** Visual representation */
-  visual: VisualDefinition;
-  
-  /** Position on canvas */
-  position: Position;
-  
-  /** Rotation angle in degrees */
-  rotation?: number;
-  
-  /** Optional label override */
-  label?: string;
+  return '#CCCCCC'; // Default gray
 }
 
 /**
- * Create a visual I/O component
+ * Get lighter shade of color (for actuators, etc.)
  */
-export function createVisualIOComponent(config: {
-  id: string;
-  io: IOComponent;
-  visual: VisualDefinition;
-  position: Position;
-  rotation?: number;
-  label?: string;
-}): VisualIOComponent {
-  return {
-    id: config.id,
-    io: config.io,
-    visual: config.visual,
-    position: config.position,
-    rotation: config.rotation || 0,
-    label: config.label || config.id,
-  };
+export function lightenColor(color: string, amount: number = 0.3): string {
+  // Simple lightening - in production, use a proper color library
+  const hex = color.replace('#', '');
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+  
+  const newR = Math.min(255, Math.round(r + (255 - r) * amount));
+  const newG = Math.min(255, Math.round(g + (255 - g) * amount));
+  const newB = Math.min(255, Math.round(b + (255 - b) * amount));
+  
+  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
 }
