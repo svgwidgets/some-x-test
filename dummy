@@ -1,52 +1,27 @@
 /**
- * Sensor Visual Definitions
+ * Pipe Visual Definition
  */
 
 import type { VisualDefinition } from '../VisualDefinition';
 
-export const SENSOR_PRESSURE: VisualDefinition = {
-  id: 'sensor-pressure',
-  name: 'Pressure Sensor',
-  category: 'Sensors',
-  icon: 'PT',
-  description: 'Pressure transmitter (PT)',
-  svg: `
-    <rect x="0" y="0" width="80" height="60" rx="4" class="sensor-box" />
-    <text x="40" y="20" class="sensor-tag" text-anchor="middle" font-size="12" font-weight="bold">PT</text>
-    <text x="40" y="40" class="sensor-value" text-anchor="middle" font-size="16" font-weight="bold">0.0</text>
-    <text x="40" y="54" class="sensor-unit" text-anchor="middle" font-size="10">bar</text>
-  `,
-  viewBox: { width: 80, height: 60 },
-  ports: [], // Sensors typically don't have flow ports
-  colorTargets: [
-    { selector: '.sensor-box', property: 'fill', defaultColor: '#FFFFFF' },
-    { selector: '.sensor-box', property: 'stroke', defaultColor: '#333' },
-    { selector: '.sensor-value', property: 'fill', defaultColor: '#1976D2' },
+export const PIPE_STRAIGHT: VisualDefinition = {
+  id: 'pipe-straight',
+  name: 'Pipe',
+  category: 'Connections',
+  icon: '─',
+  description: 'Connecting pipe with flow animation',
+  svg: '', // Generated dynamically based on endpoints
+  viewBox: { width: 100, height: 100 },
+  ports: [
+    { id: 'start', type: 'outlet', position: { x: 0, y: 0 } },
+    { id: 'end', type: 'inlet', position: { x: 100, y: 100 } },
   ],
+  colorTargets: [
+    { selector: 'path', property: 'stroke', defaultColor: '#424242' },
+  ],
+  animationTargets: ['.flow-dot'],
 };
 
-export const SENSOR_TEMPERATURE: VisualDefinition = {
-  id: 'sensor-temperature',
-  name: 'Temperature Sensor',
-  category: 'Sensors',
-  icon: 'TT',
-  description: 'Temperature transmitter (TT)',
-  svg: `
-    <rect x="0" y="0" width="80" height="60" rx="4" class="sensor-box" />
-    <text x="40" y="20" class="sensor-tag" text-anchor="middle" font-size="12" font-weight="bold">TT</text>
-    <text x="40" y="40" class="sensor-value" text-anchor="middle" font-size="16" font-weight="bold">0.0</text>
-    <text x="40" y="54" class="sensor-unit" text-anchor="middle" font-size="10">°C</text>
-  `,
-  viewBox: { width: 80, height: 60 },
-  ports: [],
-  colorTargets: [
-    { selector: '.sensor-box', property: 'fill', defaultColor: '#FFFFFF' },
-    { selector: '.sensor-box', property: 'stroke', defaultColor: '#333' },
-    { selector: '.sensor-value', property: 'fill', defaultColor: '#1976D2' },
-  ],
-};
-
-export const SENSOR_VISUALS = [
-  SENSOR_PRESSURE,
-  SENSOR_TEMPERATURE,
+export const PIPE_VISUALS = [
+  PIPE_STRAIGHT,
 ];
