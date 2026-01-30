@@ -1,55 +1,97 @@
-/**
- * I/O Component Library
- * 
- * Provides abstract base classes and interfaces for digital and analog I/O components.
- * This is the foundation for all P&ID components with data binding capabilities.
- * 
- * @example
- * ```typescript
- * import { createDigitalIO, DIGITAL_IO_PRESETS } from '@/lib/io';
- * 
- * const valve = createDigitalIO({
- *   id: 'V-001',
- *   channel: 'plc1.valves.V001.state',
- *   ...DIGITAL_IO_PRESETS.valve
- * });
- * ```
- */
+# I/O Component Usage Examples
 
-// Base exports
-export type { IOComponent, IOMetadata } from './IOComponent';
-export { BaseIOComponent } from './IOComponent';
+## Digital I/O
 
-// Digital I/O exports
-export type { 
-  DigitalIO, 
-  DigitalStateMapping 
-} from './DigitalIO';
-export { 
-  DigitalIOComponent, 
-  createDigitalIO, 
-  DIGITAL_IO_PRESETS 
-} from './DigitalIO';
+### Create a Valve
+```typescript
+import { createDigitalIO, DIGITAL_IO_PRESETS } from '@/lib/io';
 
-// Analog I/O exports
-export type { 
-  AnalogIO, 
-  AnalogRange, 
-  AnalogAlarms, 
-  AnalogWarnings,
-  AnalogState
-} from './AnalogIO';
-export { 
-  AnalogIOComponent, 
-  createAnalogIO, 
-  ANALOG_IO_PRESETS 
-} from './AnalogIO';
+const valve = createDigitalIO({
+  id: 'V-001',
+  channel: 'plc1.valves.V001.state',
+  initialValue: false,
+  ...DIGITAL_IO_PRESETS.valve,
+  description: 'Main inlet valve'
+});
 
-// Type guards
-export function isDigitalIO(io: IOComponent): io is DigitalIO {
-  return io.ioType === 'digital';
+// Update value
+valve.updateValue(true);
+
+// Get state label
+console.log(valve.getStateLabel()); // "Open"
+
+// Toggle value
+valve.toggle(); // Now closed
+```
+
+### Create a Pump
+```typescript
+const pump = createDigitalIO({
+  id: 'P-001',
+  channel: 'plc1.pumps.P001.state',
+  ...DIGITAL_IO_PRESETS.pump,
+  controllable: true
+});
+
+// Control pump
+pump.setTrue(); // Start pump
+pump.setFalse(); // Stop pump
+```
+
+## Analog I/O
+
+### Create a Pressure Sensor
+```typescript
+import { createAnalogIO, ANALOG_IO_PRESETS } from '@/lib/io';
+
+const pressureSensor = createAnalogIO({
+  id: 'PT-001',
+  channel: 'plc1.sensors.PT001.value',
+  initialValue: 150.5,
+  ...ANALOG_IO_PRESETS.pressure,
+  description: 'Inlet pressure transmitter'
+});
+
+// Update value
+pressureSensor.updateValue(185.3);
+
+// Get formatted value
+console.log(pressureSensor.getFormattedValue()); // "185.3 bar"
+
+// Check state
+console.log(pressureSensor.getState()); // "warning-high"
+
+// Get percentage
+console.log(pressureSensor.getPercentage()); // 92.65%
+```
+
+### Create a Tank Level
+```typescript
+const tankLevel = createAnalogIO({
+  id: 'LT-001',
+  channel: 'plc1.tanks.TK001.level',
+  ...ANALOG_IO_PRESETS.level,
+  alarms: { low: 10, high: 95 }
+});
+
+// Update level
+tankLevel.updateValue(50);
+
+// Check alarms
+if (tankLevel.isInAlarm()) {
+  console.warn(`Tank ${tankLevel.id} in alarm state!`);
 }
+```
 
-export function isAnalogIO(io: IOComponent): io is AnalogIO {
-  return io.ioType === 'analog';
+## Type Guards
+```typescript
+import { isDigitalIO, isAnalogIO } from '@/lib/io';
+
+function handleIO(io: IOComponent) {
+  if (isDigitalIO(io)) {
+    console.log(`Digital: ${io.getStateLabel()}`);
+  } else if (isAnalogIO(io)) {
+    console.log(`Analog: ${io.getFormattedValue()}`);
+  }
 }
+```
