@@ -1,178 +1,98 @@
-<template>
-  <div class="connection-properties">
-    <!-- Basic Info Section -->
-    <div class="property-section">
-      <h4 class="section-title">Connection Information</h4>
-      
-      <div class="form-group">
-        <label>Connection ID</label>
-        <input
-          :value="connection.id"
-          type="text"
-          class="form-input"
-          disabled
-        />
-      </div>
-      
-      <div class="connection-info">
-        <div class="endpoint">
-          <span class="label">From:</span>
-          <span class="value">{{ connection.from.componentId }}.{{ connection.from.portId }}</span>
-        </div>
-        <div class="arrow">→</div>
-        <div class="endpoint">
-          <span class="label">To:</span>
-          <span class="value">{{ connection.to.componentId }}.{{ connection.to.portId }}</span>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Data Channel Section -->
-    <div class="property-section">
-      <h4 class="section-title">Data Channel</h4>
-      
-      <div class="form-group">
-        <label>Channel</label>
-        <input
-          v-model="localConnection.channel"
-          type="text"
-          class="form-input"
-          placeholder="e.g., plc1.flow.FT001"
-        />
-        <span class="help-text">Data source for flow animation</span>
-      </div>
-    </div>
-  </div>
-</template>
+/**
+ * Base I/O Component
+ * 
+ * Foundation for all P&ID components with data binding.
+ * Represents a single I/O point (analog or digital) that can receive
+ * real-time data from PLCs, SCADA systems, or other data sources.
+ */
 
-<script setup lang="ts">
-import { ref, watch } from 'vue';
-import type { Connection } from '@/core/types';
-
-interface Props {
-  connection: Connection;
-  modelValue: Connection;
+export interface IOMetadata {
+  /** Last update timestamp (Unix ms) */
+  timestamp?: number;
+  
+  /** Data quality indicator */
+  quality?: 'good' | 'bad' | 'uncertain';
+  
+  /** Source of the data (e.g., "PLC1", "Modbus", "OPC-UA") */
+  source?: string;
+  
+  /** Additional metadata */
+  [key: string]: any;
 }
 
-const props = defineProps<Props>();
-const emit = defineEmits<{
-  'update:modelValue': [value: Connection];
-}>();
-
-// Local editable copy
-const localConnection = ref<any>({
-  ...JSON.parse(JSON.stringify(props.connection)),
-  channel: props.connection.channel || '',
-});
-
-// Watch for changes and emit
-watch(localConnection, (newValue) => {
-  emit('update:modelValue', newValue);
-}, { deep: true });
-</script>
-
-<style scoped>
-.connection-properties {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-lg);
+export interface IOComponent<T = any> {
+  /** Unique identifier for this I/O point */
+  id: string;
+  
+  /** Data channel/tag path (e.g., "plc1.valves.V001.state") */
+  channel: string;
+  
+  /** Current value of the I/O point */
+  value: T;
+  
+  /** Type discriminator for runtime type checking */
+  ioType: 'digital' | 'analog';
+  
+  /** Optional metadata about the data */
+  metadata?: IOMetadata;
+  
+  /** Human-readable description */
+  description?: string;
 }
 
-.property-section {
-  background: white;
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-lg);
+/**
+ * Base class for I/O components (can be extended)
+ */
+export abstract class BaseIOComponent<T = any> implements IOComponent<T> {
+  id: string;
+  channel: string;
+  value: T;
+  ioType: 'digital' | 'analog';
+  metadata?: IOMetadata;
+  description?: string;
+  
+  constructor(config: {
+    id: string;
+    channel: string;
+    value: T;
+    ioType: 'digital' | 'analog';
+    description?: string;
+  }) {
+    this.id = config.id;
+    this.channel = config.channel;
+    this.value = config.value;
+    this.ioType = config.ioType;
+    this.description = config.description;
+    this.metadata = {
+      timestamp: Date.now(),
+      quality: 'good',
+    };
+  }
+  
+  /**
+   * Update the I/O value with new data
+   */
+  updateValue(newValue: T, metadata?: Partial<IOMetadata>): void {
+    this.value = newValue;
+    this.metadata = {
+      ...this.metadata,
+      ...metadata,
+      timestamp: Date.now(),
+    };
+  }
+  
+  /**
+   * Check if data is fresh (updated within threshold)
+   */
+  isFresh(thresholdMs: number = 5000): boolean {
+    if (!this.metadata?.timestamp) return false;
+    return (Date.now() - this.metadata.timestamp) < thresholdMs;
+  }
+  
+  /**
+   * Check if data quality is good
+   */
+  hasGoodQuality(): boolean {
+    return this.metadata?.quality === 'good';
+  }
 }
-
-.section-title {
-  margin: 0 0 var(--spacing-md) 0;
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--color-text-secondary);
-}
-
-.connection-info {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
-  background: var(--color-bg-secondary);
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-}
-
-.endpoint {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.endpoint .label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-}
-
-.endpoint .value {
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  color: var(--color-primary);
-  font-weight: 600;
-}
-
-.arrow {
-  font-size: 20px;
-  color: var(--color-text-secondary);
-}
-
-.form-group {
-  margin-bottom: var(--spacing-md);
-}
-
-.form-group:last-child {
-  margin-bottom: 0;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: var(--spacing-xs);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.form-input {
-  width: 100%;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: 1px solid var(--color-border-medium);
-  border-radius: var(--radius-sm);
-  font-size: 14px;
-  font-family: inherit;
-  transition: all var(--transition-fast);
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
-}
-
-.form-input:disabled {
-  background: var(--color-bg-secondary);
-  color: var(--color-text-secondary);
-  cursor: not-allowed;
-}
-
-.help-text {
-  display: block;
-  margin-top: var(--spacing-xs);
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  font-style: italic;
-}
-</style>
