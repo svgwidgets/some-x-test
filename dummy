@@ -1,83 +1,56 @@
 /**
- * Color Mapper
+ * Visual System Library
  * 
- * Maps I/O states to visual colors.
+ * SVG-based visual definitions for P&ID components.
+ * 
+ * @example
+ * ```typescript
+ * import { svgLibrary, SVGRenderer } from '@/lib/visuals';
+ * 
+ * const valveVisual = svgLibrary.get('valve-gate');
+ * ```
  */
 
-import type { IOComponent } from '../io/IOComponent';
-import { isDigitalIO, isAnalogIO } from '../io';
-import type { AnalogState } from '../io/AnalogIO';
+// Core exports
+export type { 
+  VisualDefinition, 
+  Position, 
+  ViewBox, 
+  PortDefinition,
+  ColorTarget,
+  VisualMetadata,
+} from './VisualDefinition';
 
-export interface ColorScheme {
-  digital: {
-    true: string;
-    false: string;
-    transitioning?: string;
-    fault?: string;
-  };
-  analog: {
-    normal: string;
-    'warning-low': string;
-    'warning-high': string;
-    'alarm-low': string;
-    'alarm-high': string;
-    'alarm-low-low': string;
-    'alarm-high-high': string;
-    'out-of-range': string;
-  };
-}
+export { getVisualMetadata } from './VisualDefinition';
 
-export const DEFAULT_COLOR_SCHEME: ColorScheme = {
-  digital: {
-    true: '#4CAF50',      // Green - Open/On
-    false: '#F44336',     // Red - Closed/Off
-    transitioning: '#FFC107', // Yellow - Moving
-    fault: '#9C27B0',     // Purple - Fault
-  },
-  analog: {
-    normal: '#4CAF50',
-    'warning-low': '#FFC107',
-    'warning-high': '#FFC107',
-    'alarm-low': '#F44336',
-    'alarm-high': '#F44336',
-    'alarm-low-low': '#D32F2F',
-    'alarm-high-high': '#D32F2F',
-    'out-of-range': '#9C27B0',
-  },
-};
+// Library exports
+export { 
+  SVGLibrary, 
+  svgLibrary,
+  getVisual,
+  getAllVisuals,
+  getVisualsByCategory,
+  getCategories,
+} from './SVGLibrary';
 
-/**
- * Get color for I/O component
- */
-export function getIOColor(io: IOComponent, scheme: ColorScheme = DEFAULT_COLOR_SCHEME): string {
-  if (isDigitalIO(io)) {
-    if (io.transitioning && scheme.digital.transitioning) {
-      return scheme.digital.transitioning;
-    }
-    return io.value ? scheme.digital.true : scheme.digital.false;
-  }
-  
-  if (isAnalogIO(io)) {
-    const state = io.getState();
-    return scheme.analog[state];
-  }
-  
-  return '#CCCCCC'; // Default gray
-}
+// Component exports
+export { default as SVGRenderer } from './SVGRenderer.vue';
 
-/**
- * Get lighter shade of color (for actuators, etc.)
- */
-export function lightenColor(color: string, amount: number = 0.3): string {
-  // Simple lightening - in production, use a proper color library
-  const hex = color.replace('#', '');
-  const r = parseInt(hex.substr(0, 2), 16);
-  const g = parseInt(hex.substr(2, 2), 16);
-  const b = parseInt(hex.substr(4, 2), 16);
-  
-  const newR = Math.min(255, Math.round(r + (255 - r) * amount));
-  const newG = Math.min(255, Math.round(g + (255 - g) * amount));
-  const newB = Math.min(255, Math.round(b + (255 - b) * amount));
-  
-  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
-}
+// Integration exports
+export type { VisualIOComponent } from './VisualIOComponent';
+export { createVisualIOComponent } from './VisualIOComponent';
+
+// Utility exports
+export type { ColorScheme } from './ColorMapper';
+export { 
+  DEFAULT_COLOR_SCHEME, 
+  getIOColor, 
+  lightenColor 
+} from './ColorMapper';
+
+// Visual definition exports
+export { VALVE_VISUALS } from './definitions/valves';
+export { PUMP_VISUALS } from './definitions/pumps';
+export { TANK_VISUALS } from './definitions/tanks';
+export { SENSOR_VISUALS } from './definitions/sensors';
+export { PIPE_VISUALS } from './definitions/pipes';
