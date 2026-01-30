@@ -1,97 +1,67 @@
-# I/O Component Usage Examples
+import { describe, it, expect } from 'vitest';
+import { createDigitalIO, DIGITAL_IO_PRESETS } from '../DigitalIO';
 
-## Digital I/O
-
-### Create a Valve
-```typescript
-import { createDigitalIO, DIGITAL_IO_PRESETS } from '@/lib/io';
-
-const valve = createDigitalIO({
-  id: 'V-001',
-  channel: 'plc1.valves.V001.state',
-  initialValue: false,
-  ...DIGITAL_IO_PRESETS.valve,
-  description: 'Main inlet valve'
+describe('DigitalIO', () => {
+  it('should create digital I/O with initial value', () => {
+    const dio = createDigitalIO({
+      id: 'TEST-001',
+      channel: 'test.channel',
+      initialValue: true,
+      ...DIGITAL_IO_PRESETS.valve,
+    });
+    
+    expect(dio.value).toBe(true);
+    expect(dio.id).toBe('TEST-001');
+    expect(dio.ioType).toBe('digital');
+  });
+  
+  it('should get correct state label', () => {
+    const dio = createDigitalIO({
+      id: 'TEST-001',
+      channel: 'test.channel',
+      initialValue: false,
+      ...DIGITAL_IO_PRESETS.valve,
+    });
+    
+    expect(dio.getStateLabel()).toBe('Closed');
+    
+    dio.updateValue(true);
+    expect(dio.getStateLabel()).toBe('Open');
+  });
+  
+  it('should toggle value when controllable', () => {
+    const dio = createDigitalIO({
+      id: 'TEST-001',
+      channel: 'test.channel',
+      initialValue: false,
+      ...DIGITAL_IO_PRESETS.valve,
+    });
+    
+    expect(dio.value).toBe(false);
+    dio.toggle();
+    expect(dio.value).toBe(true);
+    dio.toggle();
+    expect(dio.value).toBe(false);
+  });
+  
+  it('should throw error when toggling non-controllable I/O', () => {
+    const dio = createDigitalIO({
+      id: 'TEST-001',
+      channel: 'test.channel',
+      ...DIGITAL_IO_PRESETS.alarm,
+    });
+    
+    expect(() => dio.toggle()).toThrow();
+  });
+  
+  it('should track data freshness', () => {
+    const dio = createDigitalIO({
+      id: 'TEST-001',
+      channel: 'test.channel',
+      ...DIGITAL_IO_PRESETS.valve,
+    });
+    
+    expect(dio.isFresh(10000)).toBe(true);
+    expect(dio.isFresh(0)).toBe(false);
+  });
 });
-
-// Update value
-valve.updateValue(true);
-
-// Get state label
-console.log(valve.getStateLabel()); // "Open"
-
-// Toggle value
-valve.toggle(); // Now closed
-```
-
-### Create a Pump
-```typescript
-const pump = createDigitalIO({
-  id: 'P-001',
-  channel: 'plc1.pumps.P001.state',
-  ...DIGITAL_IO_PRESETS.pump,
-  controllable: true
-});
-
-// Control pump
-pump.setTrue(); // Start pump
-pump.setFalse(); // Stop pump
-```
-
-## Analog I/O
-
-### Create a Pressure Sensor
-```typescript
-import { createAnalogIO, ANALOG_IO_PRESETS } from '@/lib/io';
-
-const pressureSensor = createAnalogIO({
-  id: 'PT-001',
-  channel: 'plc1.sensors.PT001.value',
-  initialValue: 150.5,
-  ...ANALOG_IO_PRESETS.pressure,
-  description: 'Inlet pressure transmitter'
-});
-
-// Update value
-pressureSensor.updateValue(185.3);
-
-// Get formatted value
-console.log(pressureSensor.getFormattedValue()); // "185.3 bar"
-
-// Check state
-console.log(pressureSensor.getState()); // "warning-high"
-
-// Get percentage
-console.log(pressureSensor.getPercentage()); // 92.65%
-```
-
-### Create a Tank Level
-```typescript
-const tankLevel = createAnalogIO({
-  id: 'LT-001',
-  channel: 'plc1.tanks.TK001.level',
-  ...ANALOG_IO_PRESETS.level,
-  alarms: { low: 10, high: 95 }
-});
-
-// Update level
-tankLevel.updateValue(50);
-
-// Check alarms
-if (tankLevel.isInAlarm()) {
-  console.warn(`Tank ${tankLevel.id} in alarm state!`);
-}
-```
-
-## Type Guards
-```typescript
-import { isDigitalIO, isAnalogIO } from '@/lib/io';
-
-function handleIO(io: IOComponent) {
-  if (isDigitalIO(io)) {
-    console.log(`Digital: ${io.getStateLabel()}`);
-  } else if (isAnalogIO(io)) {
-    console.log(`Analog: ${io.getFormattedValue()}`);
-  }
-}
-```
