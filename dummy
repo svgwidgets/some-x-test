@@ -1,158 +1,123 @@
-/**
- * SVG Library
- * 
- * Central registry of all visual definitions.
- * Provides lookup and filtering capabilities.
- */
-
-import type { VisualDefinition, VisualMetadata } from './VisualDefinition';
-import { getVisualMetadata } from './VisualDefinition';
-
-// Import all visual definitions
-import { VALVE_VISUALS } from './definitions/valves';
-import { PUMP_VISUALS } from './definitions/pumps';
-import { TANK_VISUALS } from './definitions/tanks';
-import { SENSOR_VISUALS } from './definitions/sensors';
-import { PIPE_VISUALS } from './definitions/pipes';
-
-/**
- * SVG Library class
- */
-export class SVGLibrary {
-  private visuals: Map<string, VisualDefinition>;
-  
-  constructor() {
-    this.visuals = new Map();
-    this.loadDefaultVisuals();
-  }
-  
-  /**
-   * Load default visual definitions
-   */
-  private loadDefaultVisuals(): void {
-    const allVisuals = [
-      ...VALVE_VISUALS,
-      ...PUMP_VISUALS,
-      ...TANK_VISUALS,
-      ...SENSOR_VISUALS,
-      ...PIPE_VISUALS,
-    ];
+<template>
+  <g
+    :transform="`translate(${position.x}, ${position.y}) rotate(${rotation}, ${centerX}, ${centerY})`"
+    :class="['svg-component', `svg-${visual.id}`, { 'svg-selected': selected }]"
+  >
+    <!-- Render SVG content -->
+    <g v-html="renderedSVG" :style="colorStyle"></g>
     
-    allVisuals.forEach(visual => {
-      this.register(visual);
-    });
-  }
-  
-  /**
-   * Register a visual definition
-   */
-  register(visual: VisualDefinition): void {
-    if (this.visuals.has(visual.id)) {
-      console.warn(`[SVGLibrary] Overwriting visual: ${visual.id}`);
-    }
-    this.visuals.set(visual.id, visual);
-  }
-  
-  /**
-   * Get visual definition by ID
-   */
-  get(id: string): VisualDefinition | undefined {
-    return this.visuals.get(id);
-  }
-  
-  /**
-   * Check if visual exists
-   */
-  has(id: string): boolean {
-    return this.visuals.has(id);
-  }
-  
-  /**
-   * Get all visual IDs
-   */
-  getIds(): string[] {
-    return Array.from(this.visuals.keys());
-  }
-  
-  /**
-   * Get all visual definitions
-   */
-  getAll(): VisualDefinition[] {
-    return Array.from(this.visuals.values());
-  }
-  
-  /**
-   * Get visuals by category
-   */
-  getByCategory(category: string): VisualDefinition[] {
-    return this.getAll().filter(visual => visual.category === category);
-  }
-  
-  /**
-   * Get all categories
-   */
-  getCategories(): string[] {
-    const categories = new Set<string>();
-    this.visuals.forEach(visual => categories.add(visual.category));
-    return Array.from(categories).sort();
-  }
-  
-  /**
-   * Get metadata for all visuals
-   */
-  getAllMetadata(): VisualMetadata[] {
-    return this.getAll().map(getVisualMetadata);
-  }
-  
-  /**
-   * Search visuals by name or description
-   */
-  search(query: string): VisualDefinition[] {
-    const lowerQuery = query.toLowerCase();
-    return this.getAll().filter(visual => 
-      visual.name.toLowerCase().includes(lowerQuery) ||
-      visual.description?.toLowerCase().includes(lowerQuery)
-    );
-  }
-  
-  /**
-   * Remove a visual definition
-   */
-  unregister(id: string): boolean {
-    return this.visuals.delete(id);
-  }
-  
-  /**
-   * Clear all visuals
-   */
-  clear(): void {
-    this.visuals.clear();
-  }
-  
-  /**
-   * Get count of registered visuals
-   */
-  get count(): number {
-    return this.visuals.size;
-  }
+    <!-- Ports (optional) -->
+    <g v-if="showPorts" class="ports">
+      <circle
+        v-for="port in visual.ports"
+        :key="port.id"
+        :cx="port.position.x"
+        :cy="port.position.y"
+        :r="portRadius"
+        :class="['port', `port-${port.type}`]"
+        :fill="portColor(port.type)"
+        stroke="#333"
+        stroke-width="1.5"
+      />
+    </g>
+    
+    <!-- Label -->
+    <text
+      v-if="label"
+      :x="centerX"
+      :y="-8"
+      text-anchor="middle"
+      font-size="10"
+      font-weight="bold"
+      fill="#333"
+      class="component-label"
+    >
+      {{ label }}
+    </text>
+  </g>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue';
+import type { VisualDefinition, Position } from './VisualDefinition';
+
+interface Props {
+  visual: VisualDefinition;
+  position: Position;
+  rotation?: number;
+  color?: string | Record<string, string>;
+  label?: string;
+  showPorts?: boolean;
+  selected?: boolean;
+  portRadius?: number;
 }
 
-// Singleton instance
-export const svgLibrary = new SVGLibrary();
+const props = withDefaults(defineProps<Props>(), {
+  rotation: 0,
+  showPorts: false,
+  selected: false,
+  portRadius: 4,
+});
 
-// Convenience functions
-export function getVisual(id: string): VisualDefinition | undefined {
-  return svgLibrary.get(id);
+// Center point for rotation
+const centerX = computed(() => props.visual.viewBox.width / 2);
+const centerY = computed(() => props.visual.viewBox.height / 2);
+
+// Rendered SVG with color replacements
+const renderedSVG = computed(() => {
+  return props.visual.svg;
+});
+
+// Color style for SVG elements
+const colorStyle = computed(() => {
+  if (!props.color) return {};
+  
+  if (typeof props.color === 'string') {
+    // Single color - apply to all fill targets
+    return { fill: props.color };
+  }
+  
+  // Multiple colors - handled via CSS classes
+  return {};
+});
+
+// Port color based on type
+function portColor(type: string): string {
+  const colors: Record<string, string> = {
+    inlet: '#2196F3',
+    outlet: '#FF9800',
+    bidirectional: '#4CAF50',
+  };
+  return colors[type] || '#FFC107';
+}
+</script>
+
+<style scoped>
+.svg-component {
+  cursor: default;
+  transition: filter var(--transition-fast);
 }
 
-export function getAllVisuals(): VisualDefinition[] {
-  return svgLibrary.getAll();
+.svg-component:hover {
+  filter: brightness(1.05);
 }
 
-export function getVisualsByCategory(category: string): VisualDefinition[] {
-  return svgLibrary.getByCategory(category);
+.svg-selected {
+  filter: drop-shadow(0 0 8px rgba(33, 150, 243, 0.6));
 }
 
-export function getCategories(): string[] {
-  return svgLibrary.getCategories();
+.port {
+  cursor: crosshair;
+  transition: all var(--transition-fast);
 }
+
+.port:hover {
+  r: 6;
+  filter: brightness(1.3) drop-shadow(0 0 4px currentColor);
+}
+
+.component-label {
+  pointer-events: none;
+  user-select: none;
+}
+</style>
