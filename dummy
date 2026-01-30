@@ -1,67 +1,97 @@
-import { describe, it, expect } from 'vitest';
-import { createDigitalIO, DIGITAL_IO_PRESETS } from '../DigitalIO';
+/**
+ * Visual Definition System
+ * 
+ * Defines the visual appearance of P&ID components using SVG.
+ * Separates visual representation from I/O logic for maximum reusability.
+ */
 
-describe('DigitalIO', () => {
-  it('should create digital I/O with initial value', () => {
-    const dio = createDigitalIO({
-      id: 'TEST-001',
-      channel: 'test.channel',
-      initialValue: true,
-      ...DIGITAL_IO_PRESETS.valve,
-    });
-    
-    expect(dio.value).toBe(true);
-    expect(dio.id).toBe('TEST-001');
-    expect(dio.ioType).toBe('digital');
-  });
+export interface Position {
+  x: number;
+  y: number;
+}
+
+export interface ViewBox {
+  width: number;
+  height: number;
+}
+
+export interface PortDefinition {
+  /** Unique port identifier */
+  id: string;
   
-  it('should get correct state label', () => {
-    const dio = createDigitalIO({
-      id: 'TEST-001',
-      channel: 'test.channel',
-      initialValue: false,
-      ...DIGITAL_IO_PRESETS.valve,
-    });
-    
-    expect(dio.getStateLabel()).toBe('Closed');
-    
-    dio.updateValue(true);
-    expect(dio.getStateLabel()).toBe('Open');
-  });
+  /** Port type (inlet, outlet, etc.) */
+  type: 'inlet' | 'outlet' | 'bidirectional';
   
-  it('should toggle value when controllable', () => {
-    const dio = createDigitalIO({
-      id: 'TEST-001',
-      channel: 'test.channel',
-      initialValue: false,
-      ...DIGITAL_IO_PRESETS.valve,
-    });
-    
-    expect(dio.value).toBe(false);
-    dio.toggle();
-    expect(dio.value).toBe(true);
-    dio.toggle();
-    expect(dio.value).toBe(false);
-  });
+  /** Position relative to component origin */
+  position: Position;
   
-  it('should throw error when toggling non-controllable I/O', () => {
-    const dio = createDigitalIO({
-      id: 'TEST-001',
-      channel: 'test.channel',
-      ...DIGITAL_IO_PRESETS.alarm,
-    });
-    
-    expect(() => dio.toggle()).toThrow();
-  });
+  /** Optional: Port angle in degrees */
+  angle?: number;
+}
+
+export interface ColorTarget {
+  /** Element ID or class to target */
+  selector: string;
   
-  it('should track data freshness', () => {
-    const dio = createDigitalIO({
-      id: 'TEST-001',
-      channel: 'test.channel',
-      ...DIGITAL_IO_PRESETS.valve,
-    });
-    
-    expect(dio.isFresh(10000)).toBe(true);
-    expect(dio.isFresh(0)).toBe(false);
-  });
-});
+  /** Property to modify (fill, stroke, etc.) */
+  property: 'fill' | 'stroke';
+  
+  /** Default color */
+  defaultColor: string;
+}
+
+export interface VisualDefinition {
+  /** Unique visual identifier */
+  id: string;
+  
+  /** Display name */
+  name: string;
+  
+  /** Category for grouping */
+  category: string;
+  
+  /** SVG path data or complete SVG markup */
+  svg: string;
+  
+  /** ViewBox dimensions */
+  viewBox: ViewBox;
+  
+  /** Connection ports */
+  ports: PortDefinition[];
+  
+  /** Elements that can change color based on state */
+  colorTargets?: ColorTarget[];
+  
+  /** Optional: Animation targets */
+  animationTargets?: string[];
+  
+  /** Optional: Icon for palette (emoji or small SVG) */
+  icon?: string;
+  
+  /** Optional: Description */
+  description?: string;
+}
+
+/**
+ * Visual metadata for categorization
+ */
+export interface VisualMetadata {
+  id: string;
+  name: string;
+  category: string;
+  icon?: string;
+  description?: string;
+}
+
+/**
+ * Get metadata from visual definition
+ */
+export function getVisualMetadata(visual: VisualDefinition): VisualMetadata {
+  return {
+    id: visual.id,
+    name: visual.name,
+    category: visual.category,
+    icon: visual.icon,
+    description: visual.description,
+  };
+}
