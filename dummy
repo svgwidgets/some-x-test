@@ -1,248 +1,55 @@
 /**
- * Analog I/O Component
+ * I/O Component Library
  * 
- * Represents continuous numeric values (pressure, temperature, flow, level, etc.).
- * Used for sensors, transmitters, gauges, and any measurement device.
+ * Provides abstract base classes and interfaces for digital and analog I/O components.
+ * This is the foundation for all P&ID components with data binding capabilities.
+ * 
+ * @example
+ * ```typescript
+ * import { createDigitalIO, DIGITAL_IO_PRESETS } from '@/lib/io';
+ * 
+ * const valve = createDigitalIO({
+ *   id: 'V-001',
+ *   channel: 'plc1.valves.V001.state',
+ *   ...DIGITAL_IO_PRESETS.valve
+ * });
+ * ```
  */
 
-import { BaseIOComponent, IOComponent, IOMetadata } from './IOComponent';
+// Base exports
+export type { IOComponent, IOMetadata } from './IOComponent';
+export { BaseIOComponent } from './IOComponent';
 
-export interface AnalogRange {
-  /** Minimum valid value */
-  min: number;
-  
-  /** Maximum valid value */
-  max: number;
+// Digital I/O exports
+export type { 
+  DigitalIO, 
+  DigitalStateMapping 
+} from './DigitalIO';
+export { 
+  DigitalIOComponent, 
+  createDigitalIO, 
+  DIGITAL_IO_PRESETS 
+} from './DigitalIO';
+
+// Analog I/O exports
+export type { 
+  AnalogIO, 
+  AnalogRange, 
+  AnalogAlarms, 
+  AnalogWarnings,
+  AnalogState
+} from './AnalogIO';
+export { 
+  AnalogIOComponent, 
+  createAnalogIO, 
+  ANALOG_IO_PRESETS 
+} from './AnalogIO';
+
+// Type guards
+export function isDigitalIO(io: IOComponent): io is DigitalIO {
+  return io.ioType === 'digital';
 }
 
-export interface AnalogAlarms {
-  /** Low alarm threshold */
-  low?: number;
-  
-  /** High alarm threshold */
-  high?: number;
-  
-  /** Low-low alarm (critical) */
-  lowLow?: number;
-  
-  /** High-high alarm (critical) */
-  highHigh?: number;
+export function isAnalogIO(io: IOComponent): io is AnalogIO {
+  return io.ioType === 'analog';
 }
-
-export interface AnalogWarnings {
-  /** Low warning threshold */
-  low?: number;
-  
-  /** High warning threshold */
-  high?: number;
-}
-
-export interface AnalogIO extends IOComponent<number> {
-  ioType: 'analog';
-  
-  /** Engineering unit (e.g., "bar", "°C", "L/min", "%") */
-  unit?: string;
-  
-  /** Valid range for the value */
-  range: AnalogRange;
-  
-  /** Alarm thresholds */
-  alarms?: AnalogAlarms;
-  
-  /** Warning thresholds */
-  warnings?: AnalogWarnings;
-  
-  /** Number of decimal places for display */
-  precision?: number;
-}
-
-/**
- * Analog state enumeration
- */
-export type AnalogState = 
-  | 'normal'
-  | 'warning-low'
-  | 'warning-high'
-  | 'alarm-low'
-  | 'alarm-high'
-  | 'alarm-low-low'
-  | 'alarm-high-high'
-  | 'out-of-range';
-
-/**
- * Analog I/O implementation
- */
-export class AnalogIOComponent extends BaseIOComponent<number> implements AnalogIO {
-  ioType: 'analog' as const;
-  unit?: string;
-  range: AnalogRange;
-  alarms?: AnalogAlarms;
-  warnings?: AnalogWarnings;
-  precision: number;
-  
-  constructor(config: {
-    id: string;
-    channel: string;
-    value: number;
-    unit?: string;
-    range: AnalogRange;
-    alarms?: AnalogAlarms;
-    warnings?: AnalogWarnings;
-    precision?: number;
-    description?: string;
-  }) {
-    super({
-      id: config.id,
-      channel: config.channel,
-      value: config.value,
-      ioType: 'analog',
-      description: config.description,
-    });
-    
-    this.unit = config.unit;
-    this.range = config.range;
-    this.alarms = config.alarms;
-    this.warnings = config.warnings;
-    this.precision = config.precision ?? 1;
-  }
-  
-  /**
-   * Get current state based on value and thresholds
-   */
-  getState(): AnalogState {
-    const val = this.value;
-    
-    // Check out of range
-    if (val < this.range.min || val > this.range.max) {
-      return 'out-of-range';
-    }
-    
-    // Check critical alarms
-    if (this.alarms?.lowLow !== undefined && val <= this.alarms.lowLow) {
-      return 'alarm-low-low';
-    }
-    if (this.alarms?.highHigh !== undefined && val >= this.alarms.highHigh) {
-      return 'alarm-high-high';
-    }
-    
-    // Check alarms
-    if (this.alarms?.low !== undefined && val <= this.alarms.low) {
-      return 'alarm-low';
-    }
-    if (this.alarms?.high !== undefined && val >= this.alarms.high) {
-      return 'alarm-high';
-    }
-    
-    // Check warnings
-    if (this.warnings?.low !== undefined && val <= this.warnings.low) {
-      return 'warning-low';
-    }
-    if (this.warnings?.high !== undefined && val >= this.warnings.high) {
-      return 'warning-high';
-    }
-    
-    return 'normal';
-  }
-  
-  /**
-   * Format value for display
-   */
-  getFormattedValue(): string {
-    const formatted = this.value.toFixed(this.precision);
-    return this.unit ? `${formatted} ${this.unit}` : formatted;
-  }
-  
-  /**
-   * Get percentage of range (0-100%)
-   */
-  getPercentage(): number {
-    const { min, max } = this.range;
-    return ((this.value - min) / (max - min)) * 100;
-  }
-  
-  /**
-   * Check if value is in alarm state
-   */
-  isInAlarm(): boolean {
-    const state = this.getState();
-    return state.includes('alarm');
-  }
-  
-  /**
-   * Check if value is in warning state
-   */
-  isInWarning(): boolean {
-    const state = this.getState();
-    return state.includes('warning');
-  }
-  
-  /**
-   * Clamp value to valid range
-   */
-  clampToRange(): void {
-    if (this.value < this.range.min) {
-      this.value = this.range.min;
-    } else if (this.value > this.range.max) {
-      this.value = this.range.max;
-    }
-  }
-}
-
-/**
- * Factory function for creating analog I/O
- */
-export function createAnalogIO(config: {
-  id: string;
-  channel: string;
-  initialValue?: number;
-  unit?: string;
-  range: AnalogRange;
-  alarms?: AnalogAlarms;
-  warnings?: AnalogWarnings;
-  precision?: number;
-  description?: string;
-}): AnalogIO {
-  return new AnalogIOComponent({
-    ...config,
-    value: config.initialValue ?? (config.range.min + config.range.max) / 2,
-  });
-}
-
-/**
- * Common analog I/O presets
- */
-export const ANALOG_IO_PRESETS = {
-  pressure: {
-    unit: 'bar',
-    range: { min: 0, max: 200 },
-    alarms: { low: 10, high: 190 },
-    warnings: { low: 20, high: 180 },
-    precision: 1,
-  },
-  temperature: {
-    unit: '°C',
-    range: { min: -50, max: 200 },
-    alarms: { low: 5, high: 150 },
-    warnings: { low: 10, high: 130 },
-    precision: 1,
-  },
-  flow: {
-    unit: 'L/min',
-    range: { min: 0, max: 500 },
-    alarms: { low: 5, high: 450 },
-    warnings: { low: 10, high: 400 },
-    precision: 1,
-  },
-  level: {
-    unit: '%',
-    range: { min: 0, max: 100 },
-    alarms: { low: 10, high: 95 },
-    warnings: { low: 20, high: 90 },
-    precision: 0,
-  },
-  speed: {
-    unit: 'RPM',
-    range: { min: 0, max: 5000 },
-    precision: 0,
-  },
-};
