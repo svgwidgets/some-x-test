@@ -1,123 +1,50 @@
-<template>
-  <g
-    :transform="`translate(${position.x}, ${position.y}) rotate(${rotation}, ${centerX}, ${centerY})`"
-    :class="['svg-component', `svg-${visual.id}`, { 'svg-selected': selected }]"
-  >
-    <!-- Render SVG content -->
-    <g v-html="renderedSVG" :style="colorStyle"></g>
-    
-    <!-- Ports (optional) -->
-    <g v-if="showPorts" class="ports">
-      <circle
-        v-for="port in visual.ports"
-        :key="port.id"
-        :cx="port.position.x"
-        :cy="port.position.y"
-        :r="portRadius"
-        :class="['port', `port-${port.type}`]"
-        :fill="portColor(port.type)"
-        stroke="#333"
-        stroke-width="1.5"
-      />
-    </g>
-    
-    <!-- Label -->
-    <text
-      v-if="label"
-      :x="centerX"
-      :y="-8"
-      text-anchor="middle"
-      font-size="10"
-      font-weight="bold"
-      fill="#333"
-      class="component-label"
-    >
-      {{ label }}
-    </text>
-  </g>
-</template>
+/**
+ * Visual I/O Component
+ * 
+ * Combines I/O abstraction with visual definition.
+ * This is the complete component that can be rendered on canvas.
+ */
 
-<script setup lang="ts">
-import { computed } from 'vue';
+import type { IOComponent } from '../io/IOComponent';
 import type { VisualDefinition, Position } from './VisualDefinition';
 
-interface Props {
+export interface VisualIOComponent {
+  /** Unique component ID */
+  id: string;
+  
+  /** I/O data binding */
+  io: IOComponent;
+  
+  /** Visual representation */
+  visual: VisualDefinition;
+  
+  /** Position on canvas */
+  position: Position;
+  
+  /** Rotation angle in degrees */
+  rotation?: number;
+  
+  /** Optional label override */
+  label?: string;
+}
+
+/**
+ * Create a visual I/O component
+ */
+export function createVisualIOComponent(config: {
+  id: string;
+  io: IOComponent;
   visual: VisualDefinition;
   position: Position;
   rotation?: number;
-  color?: string | Record<string, string>;
   label?: string;
-  showPorts?: boolean;
-  selected?: boolean;
-  portRadius?: number;
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  rotation: 0,
-  showPorts: false,
-  selected: false,
-  portRadius: 4,
-});
-
-// Center point for rotation
-const centerX = computed(() => props.visual.viewBox.width / 2);
-const centerY = computed(() => props.visual.viewBox.height / 2);
-
-// Rendered SVG with color replacements
-const renderedSVG = computed(() => {
-  return props.visual.svg;
-});
-
-// Color style for SVG elements
-const colorStyle = computed(() => {
-  if (!props.color) return {};
-  
-  if (typeof props.color === 'string') {
-    // Single color - apply to all fill targets
-    return { fill: props.color };
-  }
-  
-  // Multiple colors - handled via CSS classes
-  return {};
-});
-
-// Port color based on type
-function portColor(type: string): string {
-  const colors: Record<string, string> = {
-    inlet: '#2196F3',
-    outlet: '#FF9800',
-    bidirectional: '#4CAF50',
+}): VisualIOComponent {
+  return {
+    id: config.id,
+    io: config.io,
+    visual: config.visual,
+    position: config.position,
+    rotation: config.rotation || 0,
+    label: config.label || config.id,
   };
-  return colors[type] || '#FFC107';
 }
-</script>
-
-<style scoped>
-.svg-component {
-  cursor: default;
-  transition: filter var(--transition-fast);
-}
-
-.svg-component:hover {
-  filter: brightness(1.05);
-}
-
-.svg-selected {
-  filter: drop-shadow(0 0 8px rgba(33, 150, 243, 0.6));
-}
-
-.port {
-  cursor: crosshair;
-  transition: all var(--transition-fast);
-}
-
-.port:hover {
-  r: 6;
-  filter: brightness(1.3) drop-shadow(0 0 4px currentColor);
-}
-
-.component-label {
-  pointer-events: none;
-  user-select: none;
-}
-</style>
