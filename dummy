@@ -1,97 +1,66 @@
 /**
- * Visual Definition System
+ * Valve Visual Definitions
  * 
- * Defines the visual appearance of P&ID components using SVG.
- * Separates visual representation from I/O logic for maximum reusability.
+ * SVG definitions for various valve types extracted from FUXA.
  */
 
-export interface Position {
-  x: number;
-  y: number;
-}
+import type { VisualDefinition } from '../VisualDefinition';
 
-export interface ViewBox {
-  width: number;
-  height: number;
-}
+export const VALVE_GATE: VisualDefinition = {
+  id: 'valve-gate',
+  name: 'Gate Valve',
+  category: 'Valves',
+  icon: '◇',
+  description: 'Manual gate valve (diamond shape)',
+  svg: 'M 0 0 L 20 12 L 0 24 Z M 40 0 L 20 12 L 40 24 Z',
+  viewBox: { width: 40, height: 24 },
+  ports: [
+    { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
+    { id: 'outlet', type: 'outlet', position: { x: 40, y: 12 } },
+  ],
+  colorTargets: [
+    { selector: 'path', property: 'fill', defaultColor: '#F44336' },
+  ],
+};
 
-export interface PortDefinition {
-  /** Unique port identifier */
-  id: string;
-  
-  /** Port type (inlet, outlet, etc.) */
-  type: 'inlet' | 'outlet' | 'bidirectional';
-  
-  /** Position relative to component origin */
-  position: Position;
-  
-  /** Optional: Port angle in degrees */
-  angle?: number;
-}
+export const VALVE_BALL: VisualDefinition = {
+  id: 'valve-ball',
+  name: 'Ball Valve (BX)',
+  category: 'Valves',
+  icon: '▷',
+  description: 'Ball valve with actuator',
+  svg: 'M 20 12 L 40 0 L 40 24 Z M 20 12 L 32 32 L 8 32 Z',
+  viewBox: { width: 40, height: 32 },
+  ports: [
+    { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
+    { id: 'outlet', type: 'outlet', position: { x: 40, y: 12 } },
+  ],
+  colorTargets: [
+    { selector: '.valve-body', property: 'fill', defaultColor: '#F44336' },
+    { selector: '.valve-actuator', property: 'fill', defaultColor: '#E57373' },
+  ],
+};
 
-export interface ColorTarget {
-  /** Element ID or class to target */
-  selector: string;
-  
-  /** Property to modify (fill, stroke, etc.) */
-  property: 'fill' | 'stroke';
-  
-  /** Default color */
-  defaultColor: string;
-}
+export const VALVE_ACTUATED: VisualDefinition = {
+  id: 'valve-actuated',
+  name: 'Actuated Valve (CX)',
+  category: 'Valves',
+  icon: '◇',
+  description: 'Diamond valve with actuator',
+  svg: 'M 0 0 L 20 12 L 0 24 Z M 40 0 L 20 12 L 40 24 Z M 20 12 L 32 32 L 8 32 Z',
+  viewBox: { width: 40, height: 32 },
+  ports: [
+    { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
+    { id: 'outlet', type: 'outlet', position: { x: 40, y: 12 } },
+  ],
+  colorTargets: [
+    { selector: '.valve-body', property: 'fill', defaultColor: '#F44336' },
+    { selector: '.valve-actuator', property: 'fill', defaultColor: '#E57373' },
+  ],
+};
 
-export interface VisualDefinition {
-  /** Unique visual identifier */
-  id: string;
-  
-  /** Display name */
-  name: string;
-  
-  /** Category for grouping */
-  category: string;
-  
-  /** SVG path data or complete SVG markup */
-  svg: string;
-  
-  /** ViewBox dimensions */
-  viewBox: ViewBox;
-  
-  /** Connection ports */
-  ports: PortDefinition[];
-  
-  /** Elements that can change color based on state */
-  colorTargets?: ColorTarget[];
-  
-  /** Optional: Animation targets */
-  animationTargets?: string[];
-  
-  /** Optional: Icon for palette (emoji or small SVG) */
-  icon?: string;
-  
-  /** Optional: Description */
-  description?: string;
-}
-
-/**
- * Visual metadata for categorization
- */
-export interface VisualMetadata {
-  id: string;
-  name: string;
-  category: string;
-  icon?: string;
-  description?: string;
-}
-
-/**
- * Get metadata from visual definition
- */
-export function getVisualMetadata(visual: VisualDefinition): VisualMetadata {
-  return {
-    id: visual.id,
-    name: visual.name,
-    category: visual.category,
-    icon: visual.icon,
-    description: visual.description,
-  };
-}
+export const VALVE_VISUALS = [
+  VALVE_GATE,
+  VALVE_BALL,
+  VALVE_ACTUATED,
+];
