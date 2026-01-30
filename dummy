@@ -1,27 +1,158 @@
 /**
- * Pipe Visual Definition
+ * SVG Library
+ * 
+ * Central registry of all visual definitions.
+ * Provides lookup and filtering capabilities.
  */
 
-import type { VisualDefinition } from '../VisualDefinition';
+import type { VisualDefinition, VisualMetadata } from './VisualDefinition';
+import { getVisualMetadata } from './VisualDefinition';
 
-export const PIPE_STRAIGHT: VisualDefinition = {
-  id: 'pipe-straight',
-  name: 'Pipe',
-  category: 'Connections',
-  icon: '─',
-  description: 'Connecting pipe with flow animation',
-  svg: '', // Generated dynamically based on endpoints
-  viewBox: { width: 100, height: 100 },
-  ports: [
-    { id: 'start', type: 'outlet', position: { x: 0, y: 0 } },
-    { id: 'end', type: 'inlet', position: { x: 100, y: 100 } },
-  ],
-  colorTargets: [
-    { selector: 'path', property: 'stroke', defaultColor: '#424242' },
-  ],
-  animationTargets: ['.flow-dot'],
-};
+// Import all visual definitions
+import { VALVE_VISUALS } from './definitions/valves';
+import { PUMP_VISUALS } from './definitions/pumps';
+import { TANK_VISUALS } from './definitions/tanks';
+import { SENSOR_VISUALS } from './definitions/sensors';
+import { PIPE_VISUALS } from './definitions/pipes';
 
-export const PIPE_VISUALS = [
-  PIPE_STRAIGHT,
-];
+/**
+ * SVG Library class
+ */
+export class SVGLibrary {
+  private visuals: Map<string, VisualDefinition>;
+  
+  constructor() {
+    this.visuals = new Map();
+    this.loadDefaultVisuals();
+  }
+  
+  /**
+   * Load default visual definitions
+   */
+  private loadDefaultVisuals(): void {
+    const allVisuals = [
+      ...VALVE_VISUALS,
+      ...PUMP_VISUALS,
+      ...TANK_VISUALS,
+      ...SENSOR_VISUALS,
+      ...PIPE_VISUALS,
+    ];
+    
+    allVisuals.forEach(visual => {
+      this.register(visual);
+    });
+  }
+  
+  /**
+   * Register a visual definition
+   */
+  register(visual: VisualDefinition): void {
+    if (this.visuals.has(visual.id)) {
+      console.warn(`[SVGLibrary] Overwriting visual: ${visual.id}`);
+    }
+    this.visuals.set(visual.id, visual);
+  }
+  
+  /**
+   * Get visual definition by ID
+   */
+  get(id: string): VisualDefinition | undefined {
+    return this.visuals.get(id);
+  }
+  
+  /**
+   * Check if visual exists
+   */
+  has(id: string): boolean {
+    return this.visuals.has(id);
+  }
+  
+  /**
+   * Get all visual IDs
+   */
+  getIds(): string[] {
+    return Array.from(this.visuals.keys());
+  }
+  
+  /**
+   * Get all visual definitions
+   */
+  getAll(): VisualDefinition[] {
+    return Array.from(this.visuals.values());
+  }
+  
+  /**
+   * Get visuals by category
+   */
+  getByCategory(category: string): VisualDefinition[] {
+    return this.getAll().filter(visual => visual.category === category);
+  }
+  
+  /**
+   * Get all categories
+   */
+  getCategories(): string[] {
+    const categories = new Set<string>();
+    this.visuals.forEach(visual => categories.add(visual.category));
+    return Array.from(categories).sort();
+  }
+  
+  /**
+   * Get metadata for all visuals
+   */
+  getAllMetadata(): VisualMetadata[] {
+    return this.getAll().map(getVisualMetadata);
+  }
+  
+  /**
+   * Search visuals by name or description
+   */
+  search(query: string): VisualDefinition[] {
+    const lowerQuery = query.toLowerCase();
+    return this.getAll().filter(visual => 
+      visual.name.toLowerCase().includes(lowerQuery) ||
+      visual.description?.toLowerCase().includes(lowerQuery)
+    );
+  }
+  
+  /**
+   * Remove a visual definition
+   */
+  unregister(id: string): boolean {
+    return this.visuals.delete(id);
+  }
+  
+  /**
+   * Clear all visuals
+   */
+  clear(): void {
+    this.visuals.clear();
+  }
+  
+  /**
+   * Get count of registered visuals
+   */
+  get count(): number {
+    return this.visuals.size;
+  }
+}
+
+// Singleton instance
+export const svgLibrary = new SVGLibrary();
+
+// Convenience functions
+export function getVisual(id: string): VisualDefinition | undefined {
+  return svgLibrary.get(id);
+}
+
+export function getAllVisuals(): VisualDefinition[] {
+  return svgLibrary.getAll();
+}
+
+export function getVisualsByCategory(category: string): VisualDefinition[] {
+  return svgLibrary.getByCategory(category);
+}
+
+export function getCategories(): string[] {
+  return svgLibrary.getCategories();
+}
