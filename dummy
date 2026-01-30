@@ -1,56 +1,106 @@
-/**
- * Visual System Library
- * 
- * SVG-based visual definitions for P&ID components.
- * 
- * @example
- * ```typescript
- * import { svgLibrary, SVGRenderer } from '@/lib/visuals';
- * 
- * const valveVisual = svgLibrary.get('valve-gate');
- * ```
- */
+# Visual System Usage Examples
 
-// Core exports
-export type { 
-  VisualDefinition, 
-  Position, 
-  ViewBox, 
-  PortDefinition,
-  ColorTarget,
-  VisualMetadata,
-} from './VisualDefinition';
+## Basic Usage
 
-export { getVisualMetadata } from './VisualDefinition';
+### Get a Visual from Library
+```typescript
+import { svgLibrary } from '@/lib/visuals';
 
-// Library exports
-export { 
-  SVGLibrary, 
-  svgLibrary,
-  getVisual,
-  getAllVisuals,
-  getVisualsByCategory,
-  getCategories,
-} from './SVGLibrary';
+const valveVisual = svgLibrary.get('valve-gate');
+console.log(valveVisual?.name); // "Gate Valve"
+```
 
-// Component exports
-export { default as SVGRenderer } from './SVGRenderer.vue';
+### Render a Visual Component
+```vue
+<template>
+  <svg width="800" height="600" viewBox="0 0 800 600">
+    <SVGRenderer
+      :visual="valveVisual"
+      :position="{ x: 100, y: 200 }"
+      :rotation="0"
+      color="#4CAF50"
+      label="V-001"
+      :showPorts="true"
+    />
+  </svg>
+</template>
 
-// Integration exports
-export type { VisualIOComponent } from './VisualIOComponent';
-export { createVisualIOComponent } from './VisualIOComponent';
+<script setup>
+import { SVGRenderer, svgLibrary } from '@/lib/visuals';
 
-// Utility exports
-export type { ColorScheme } from './ColorMapper';
-export { 
-  DEFAULT_COLOR_SCHEME, 
-  getIOColor, 
-  lightenColor 
-} from './ColorMapper';
+const valveVisual = svgLibrary.get('valve-gate');
+</script>
+```
 
-// Visual definition exports
-export { VALVE_VISUALS } from './definitions/valves';
-export { PUMP_VISUALS } from './definitions/pumps';
-export { TANK_VISUALS } from './definitions/tanks';
-export { SENSOR_VISUALS } from './definitions/sensors';
-export { PIPE_VISUALS } from './definitions/pipes';
+## Combining I/O and Visuals
+```typescript
+import { createDigitalIO, DIGITAL_IO_PRESETS } from '@/lib/io';
+import { createVisualIOComponent, svgLibrary, getIOColor } from '@/lib/visuals';
+
+// Create I/O
+const valveIO = createDigitalIO({
+  id: 'V-001',
+  channel: 'plc1.valves.V001.state',
+  ...DIGITAL_IO_PRESETS.valve,
+});
+
+// Get visual
+const valveVisual = svgLibrary.get('valve-gate');
+
+// Create complete component
+const valve = createVisualIOComponent({
+  id: 'V-001',
+  io: valveIO,
+  visual: valveVisual!,
+  position: { x: 100, y: 200 },
+});
+
+// Get color based on I/O state
+const color = getIOColor(valve.io);
+
+// Render
+<SVGRenderer
+  :visual="valve.visual"
+  :position="valve.position"
+  :color="color"
+  :label="valve.id"
+/>
+```
+
+## Browse Available Visuals
+```typescript
+import { svgLibrary } from '@/lib/visuals';
+
+// Get all categories
+const categories = svgLibrary.getCategories();
+console.log(categories); // ['Valves', 'Pumps', 'Tanks', 'Sensors', 'Connections']
+
+// Get visuals by category
+const valves = svgLibrary.getByCategory('Valves');
+console.log(valves.map(v => v.name)); // ['Gate Valve', 'Ball Valve (BX)', ...]
+
+// Search visuals
+const results = svgLibrary.search('ball');
+console.log(results[0].name); // 'Ball Valve (BX)'
+```
+
+## Register Custom Visual
+```typescript
+import { svgLibrary } from '@/lib/visuals';
+import type { VisualDefinition } from '@/lib/visuals';
+
+const customValve: VisualDefinition = {
+  id: 'valve-custom',
+  name: 'Custom Valve',
+  category: 'Valves',
+  svg: 'M 0 0 L 40 20 L 0 40 Z',
+  viewBox: { width: 40, height: 40 },
+  ports: [
+    { id: 'inlet', type: 'inlet', position: { x: 0, y: 20 } },
+    { id: 'outlet', type: 'outlet', position: { x: 40, y: 20 } },
+  ],
+};
+
+svgLibrary.register(customValve);
+```
+```
