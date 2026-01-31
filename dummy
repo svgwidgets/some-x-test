@@ -1,257 +1,235 @@
 /**
- * Animation Controller
+ * Animation Definition System
  * 
- * Manages and applies animations to components based on I/O state.
+ * Generic animation abstraction for P&ID components.
+ * Supports rotation, fill, flow, scale, and custom animations.
  */
 
 import type { IOComponent } from '../io/IOComponent';
-import type { AnimationDefinition, AnimationState } from './AnimationDefinition';
 import { isDigitalIO, isAnalogIO } from '../io';
 
 /**
- * Animation Controller class
+ * Animation types
  */
-export class AnimationController {
-  private activeAnimations: Map<string, AnimationState>;
-  private animationFrameId: number | null;
+export type AnimationType = 
+  | 'rotation'      // Continuous rotation (pumps, motors)
+  | 'fill'          // Fill level animation (tanks)
+  | 'flow'          // Flow dots animation (pipes)
+  | 'scale'         // Scale animation (pulsing)
+  | 'opacity'       // Fade in/out
+  | 'stroke-dash'   // Dashed stroke animation
+  | 'custom';       // Custom animation
+
+/**
+ * Animation easing functions
+ */
+export type AnimationEasing = 
+  | 'linear'
+  | 'ease'
+  | 'ease-in'
+  | 'ease-out'
+  | 'ease-in-out'
+  | 'cubic-bezier';
+
+/**
+ * Animation condition function
+ */
+export type AnimationCondition = (io: IOComponent) => boolean;
+
+/**
+ * Animation value calculator
+ */
+export type AnimationValueCalculator = (io: IOComponent) => number | string;
+
+/**
+ * Base animation direction
+ */
+export type BaseAnimationDirection = 'normal' | 'reverse' | 'alternate' | 'alternate-reverse';
+
+/**
+ * Fill animation direction
+ */
+export type FillDirection = 'bottom-to-top' | 'top-to-bottom' | 'left-to-right' | 'right-to-left';
+
+/**
+ * Base animation configuration
+ */
+export interface BaseAnimationConfig {
+  /** Animation duration in milliseconds */
+  duration?: number;
   
-  constructor() {
-    this.activeAnimations = new Map();
-    this.animationFrameId = null;
-  }
+  /** Easing function */
+  easing?: AnimationEasing;
   
-  /**
-   * Check if animation should be active
-   */
-  shouldAnimate(animation: AnimationDefinition, io: IOComponent): boolean {
-    try {
-      return animation.condition(io);
-    } catch (error) {
-      console.error(`[AnimationController] Condition error for ${animation.id}:`, error);
-      return false;
-    }
-  }
+  /** Repeat animation */
+  repeat?: boolean | number;
   
-  /**
-   * Calculate animation value
-   */
-  calculateValue(animation: AnimationDefinition, io: IOComponent): any {
-    if (!animation.valueCalculator) return null;
-    
-    try {
-      return animation.valueCalculator(io);
-    } catch (error) {
-      console.error(`[AnimationController] Value calculation error for ${animation.id}:`, error);
-      return null;
-    }
-  }
+  /** Delay before starting */
+  delay?: number;
   
-  /**
-   * Apply animation to element
-   */
-  applyAnimation(
-    element: SVGElement | HTMLElement,
-    animation: AnimationDefinition,
-    io: IOComponent
-  ): void {
-    const shouldAnimate = this.shouldAnimate(animation, io);
-    const stateKey = `${io.id}-${animation.id}`;
-    
-    if (!shouldAnimate) {
-      // Stop animation
-      this.stopAnimation(element, animation);
-      this.activeAnimations.delete(stateKey);
-      return;
-    }
-    
-    // Start or update animation
-    const calculatedValue = this.calculateValue(animation, io);
-    
-    switch (animation.type) {
-      case 'rotation':
-        this.applyRotation(element, animation, calculatedValue);
-        break;
-      
-      case 'fill':
-        this.applyFill(element, animation, calculatedValue);
-        break;
-      
-      case 'flow':
-        this.applyFlow(element, animation, io);
-        break;
-      
-      case 'scale':
-        this.applyScale(element, animation, calculatedValue);
-        break;
-      
-      case 'opacity':
-        this.applyOpacity(element, animation, calculatedValue);
-        break;
-      
-      case 'stroke-dash':
-        this.applyStrokeDash(element, animation);
-        break;
-    }
-    
-    // Track animation state
-    this.activeAnimations.set(stateKey, {
-      animationId: animation.id,
-      componentId: io.id,
-      isActive: true,
-      startTime: Date.now(),
-      currentValue: calculatedValue,
-    });
-  }
-  
-  /**
-   * Apply rotation animation
-   */
-  private applyRotation(
-    element: SVGElement | HTMLElement,
-    animation: AnimationDefinition,
-    value?: number
-  ): void {
-    const config = animation.config;
-    const duration = config.duration || 2000;
-    
-    // CSS animation
-    element.style.animation = `rotate ${duration}ms linear infinite`;
-    
-    // If value provided, set rotation directly
-    if (value !== undefined && value !== null) {
-      element.style.transform = `rotate(${value}deg)`;
-    }
-  }
-  
-  /**
-   * Apply fill animation
-   */
-  private applyFill(
-    element: SVGElement | HTMLElement,
-    animation: AnimationDefinition,
-    percentage?: number
-  ): void {
-    if (percentage === undefined || percentage === null) return;
-    
-    const config = animation.config;
-    const duration = config.duration || 500;
-    
-    // For SVG rect (tank liquid)
-    if (element instanceof SVGRectElement) {
-      const container = config.container || { x: 0, y: 15, width: 44, height: 90 };
-      const height = (percentage / 100) * container.height;
-      const y = container.y + container.height - height;
-      
-      element.style.transition = `y ${duration}ms ${config.easing || 'ease-out'}, height ${duration}ms ${config.easing || 'ease-out'}`;
-      element.setAttribute('y', y.toString());
-      element.setAttribute('height', height.toString());
-    }
-  }
-  
-  /**
-   * Apply flow animation
-   */
-  private applyFlow(
-    element: SVGElement | HTMLElement,
-    animation: AnimationDefinition,
-    io: IOComponent
-  ): void {
-    const config = animation.config;
-    const duration = config.duration || 2000;
-    
-    // Apply CSS animation to flow dots
-    element.style.animation = `flow ${duration}ms linear infinite`;
-  }
-  
-  /**
-   * Apply scale animation
-   */
-  private applyScale(
-    element: SVGElement | HTMLElement,
-    animation: AnimationDefinition,
-    value?: number
-  ): void {
-    const config = animation.config;
-    const duration = config.duration || 300;
-    const scale = value || 1;
-    
-    element.style.transition = `transform ${duration}ms ${config.easing || 'ease-out'}`;
-    element.style.transform = `scale(${scale})`;
-  }
-  
-  /**
-   * Apply opacity animation
-   */
-  private applyOpacity(
-    element: SVGElement | HTMLElement,
-    animation: AnimationDefinition,
-    value?: number
-  ): void {
-    const config = animation.config;
-    const duration = config.duration || 1000;
-    
-    if (config.repeat) {
-      // Blinking effect
-      element.style.animation = `blink ${duration}ms linear infinite ${config.direction || 'alternate'}`;
-    } else if (value !== undefined) {
-      // Direct opacity
-      element.style.transition = `opacity ${duration}ms ${config.easing || 'ease'}`;
-      element.style.opacity = value.toString();
-    }
-  }
-  
-  /**
-   * Apply stroke-dash animation
-   */
-  private applyStrokeDash(
-    element: SVGElement | HTMLElement,
-    animation: AnimationDefinition
-  ): void {
-    const config = animation.config;
-    const duration = config.duration || 1000;
-    
-    if (element instanceof SVGElement) {
-      element.style.animation = `dash ${duration}ms linear infinite`;
-    }
-  }
-  
-  /**
-   * Stop animation
-   */
-  private stopAnimation(
-    element: SVGElement | HTMLElement,
-    animation: AnimationDefinition
-  ): void {
-    element.style.animation = '';
-    
-    switch (animation.type) {
-      case 'rotation':
-        element.style.transform = '';
-        break;
-      case 'opacity':
-        element.style.opacity = '1';
-        break;
-    }
-  }
-  
-  /**
-   * Get active animation count
-   */
-  get activeCount(): number {
-    return this.activeAnimations.size;
-  }
-  
-  /**
-   * Clear all animations
-   */
-  clearAll(): void {
-    this.activeAnimations.clear();
-    if (this.animationFrameId !== null) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
-  }
+  /** Animation direction (normal, reverse, alternate) */
+  direction?: BaseAnimationDirection;
 }
 
-// Singleton instance
-export const animationController = new AnimationController();
+/**
+ * Rotation animation config
+ */
+export interface RotationAnimationConfig extends BaseAnimationConfig {
+  /** Rotation speed (RPM or degrees/second) */
+  speed?: number;
+  
+  /** Transform origin (default: center) */
+  origin?: { x: number; y: number };
+  
+  /** Clockwise or counter-clockwise */
+  clockwise?: boolean;
+}
+
+/**
+ * Fill animation config
+ */
+export interface FillAnimationConfig extends Omit<BaseAnimationConfig, 'direction'> {
+  /** Fill direction (bottom-to-top, top-to-bottom, etc.) */
+  direction?: FillDirection;
+  
+  /** Container dimensions */
+  container?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
+/**
+ * Flow animation config
+ */
+export interface FlowAnimationConfig extends BaseAnimationConfig {
+  /** Number of flow dots */
+  dotCount?: number;
+  
+  /** Dot size */
+  dotSize?: number;
+  
+  /** Dot spacing */
+  spacing?: number;
+  
+  /** Flow speed (pixels per second) */
+  speed?: number;
+}
+
+/**
+ * Scale animation config
+ */
+export interface ScaleAnimationConfig extends BaseAnimationConfig {
+  /** Scale range (from, to) */
+  scale?: { from: number; to: number };
+  
+  /** Transform origin */
+  origin?: { x: number; y: number };
+}
+
+/**
+ * Main animation definition
+ */
+export interface AnimationDefinition {
+  /** Unique animation ID */
+  id: string;
+  
+  /** Animation type */
+  type: AnimationType;
+  
+  /** Target element selector (CSS selector or element ID) */
+  target: string;
+  
+  /** Condition for when animation should be active */
+  condition: AnimationCondition;
+  
+  /** Animation configuration */
+  config: BaseAnimationConfig | RotationAnimationConfig | FillAnimationConfig | FlowAnimationConfig | ScaleAnimationConfig;
+  
+  /** Optional: Calculate dynamic values (e.g., RPM from I/O) */
+  valueCalculator?: AnimationValueCalculator;
+  
+  /** Optional: Description */
+  description?: string;
+}
+
+/**
+ * Animation state (for tracking)
+ */
+export interface AnimationState {
+  animationId: string;
+  componentId: string;
+  isActive: boolean;
+  startTime?: number;
+  currentValue?: any;
+}
+
+/**
+ * Common animation conditions
+ */
+export const ANIMATION_CONDITIONS = {
+  /** Animation active when digital I/O is true */
+  digitalTrue: (io: IOComponent): boolean => {
+    return isDigitalIO(io) && io.value === true;
+  },
+  
+  /** Animation active when digital I/O is false */
+  digitalFalse: (io: IOComponent): boolean => {
+    return isDigitalIO(io) && io.value === false;
+  },
+  
+  /** Animation active when analog I/O value > 0 */
+  analogPositive: (io: IOComponent): boolean => {
+    return isAnalogIO(io) && io.value > 0;
+  },
+  
+  /** Animation active when analog I/O value > threshold */
+  analogAboveThreshold: (threshold: number) => (io: IOComponent): boolean => {
+    return isAnalogIO(io) && io.value > threshold;
+  },
+  
+  /** Animation active when analog I/O is in range */
+  analogInRange: (min: number, max: number) => (io: IOComponent): boolean => {
+    return isAnalogIO(io) && io.value >= min && io.value <= max;
+  },
+  
+  /** Always active */
+  always: (): boolean => true,
+  
+  /** Never active */
+  never: (): boolean => false,
+};
+
+/**
+ * Common value calculators
+ */
+export const VALUE_CALCULATORS = {
+  /** Use analog value directly */
+  analogValue: (io: IOComponent): number => {
+    return isAnalogIO(io) ? io.value : 0;
+  },
+  
+  /** Use analog percentage (0-100) */
+  analogPercentage: (io: IOComponent): number => {
+    return isAnalogIO(io) ? io.getPercentage() : 0;
+  },
+  
+  /** Map analog value to range */
+  mapRange: (
+    inMin: number, 
+    inMax: number, 
+    outMin: number, 
+    outMax: number
+  ) => (io: IOComponent): number => {
+    if (!isAnalogIO(io)) return 0;
+    const value = io.value;
+    return ((value - inMin) / (inMax - inMin)) * (outMax - outMin) + outMin;
+  },
+  
+  /** Digital to number (1 or 0) */
+  digitalToNumber: (io: IOComponent): number => {
+    return isDigitalIO(io) ? (io.value ? 1 : 0) : 0;
+  },
+};
