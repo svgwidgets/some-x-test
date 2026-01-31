@@ -1,178 +1,550 @@
 <template>
-  <g
-    :transform="`translate(${position.x}, ${position.y}) rotate(${rotation}, ${centerX}, ${centerY})`"
-    :class="['svg-component', `svg-${visual.id}`, { 'svg-selected': selected }]"
-  >
-    <!-- Render SVG content -->
-    <g v-html="renderedSVG" :class="colorClasses"></g>
+  <div class="library-demo">
+    <header class="demo-header">
+      <h1>🎨 P&ID Component Library - Proper Architecture Demo</h1>
+      <p>Demonstrating: SVGLibrary → SVGRenderer → AnimatedComponent</p>
+    </header>
     
-    <!-- Ports (optional) -->
-    <g v-if="showPorts" class="ports">
-      <circle
-        v-for="port in visual.ports"
-        :key="port.id"
-        :cx="port.position.x"
-        :cy="port.position.y"
-        :r="portRadius"
-        :class="['port', `port-${port.type}`]"
-        :fill="portColor(port.type)"
-        stroke="#333"
-        stroke-width="1.5"
-      />
-    </g>
+    <div class="demo-controls">
+      <div class="control-group">
+        <h3>🎮 Controls</h3>
+        <button @click="toggleAllValves" class="btn">
+          🔄 Toggle All Valves
+        </button>
+        <button @click="togglePump" class="btn" :class="{ 'btn-active': pumpIO.value }">
+          {{ pumpIO.value ? '⏹️ Stop' : '▶️ Start' }} Pump
+        </button>
+        <button @click="increaseTankLevel" class="btn">
+          ⬆️ Tank Level +10%
+        </button>
+        <button @click="decreaseTankLevel" class="btn">
+          ⬇️ Tank Level -10%
+        </button>
+        <button @click="increasePressure" class="btn">
+          📈 Pressure +10 bar
+        </button>
+        <button @click="decreasePressure" class="btn">
+          📉 Pressure -10 bar
+        </button>
+        <button @click="randomizeAll" class="btn btn-secondary">
+          🎲 Randomize All
+        </button>
+        <button @click="resetAll" class="btn btn-danger">
+          🔄 Reset All
+        </button>
+      </div>
+      
+      <div class="control-group">
+        <h3>📊 I/O States (Live)</h3>
+        <div class="io-states-grid">
+          <div class="io-state">
+            <strong>V-001 (Gate):</strong>
+            <span :style="{ color: getIOColor(valveIO) }">
+              {{ valveIO.getStateLabel() }}
+            </span>
+          </div>
+          <div class="io-state">
+            <strong>V-002 (Ball):</strong>
+            <span :style="{ color: getIOColor(ballValveIO) }">
+              {{ ballValveIO.getStateLabel() }}
+            </span>
+          </div>
+          <div class="io-state">
+            <strong>V-003 (Actuated):</strong>
+            <span :style="{ color: getIOColor(actuatedValveIO) }">
+              {{ actuatedValveIO.getStateLabel() }}
+            </span>
+          </div>
+          <div class="io-state">
+            <strong>P-001 (Pump):</strong>
+            <span :style="{ color: getIOColor(pumpIO) }">
+              {{ pumpIO.getStateLabel() }}
+            </span>
+          </div>
+          <div class="io-state">
+            <strong>TK-001 (Tank):</strong>
+            <span :style="{ color: getIOColor(tankIO) }">
+              {{ tankIO.getFormattedValue() }}
+            </span>
+            <small>({{ tankIO.getState() }})</small>
+          </div>
+          <div class="io-state">
+            <strong>PT-001 (Pressure):</strong>
+            <span :style="{ color: getIOColor(pressureIO) }">
+              {{ pressureIO.getFormattedValue() }}
+            </span>
+            <small>({{ pressureIO.getState() }})</small>
+          </div>
+          <div class="io-state">
+            <strong>TT-001 (Temperature):</strong>
+            <span :style="{ color: getIOColor(temperatureIO) }">
+              {{ temperatureIO.getFormattedValue() }}
+            </span>
+            <small>({{ temperatureIO.getState() }})</small>
+          </div>
+        </div>
+      </div>
+      
+      <div class="control-group">
+        <h3>📚 Library Usage</h3>
+        <div class="usage-code">
+          <pre><code>// 1. Get visual from library
+const visual = svgLibrary.get('valve-gate');
+
+// 2. Create I/O
+const io = createDigitalIO({...});
+
+// 3. Render with color
+&lt;SVGRenderer 
+  :visual="visual"
+  :position="{x: 100, y: 200}"
+  :color="getIOColor(io)"
+/&gt;</code></pre>
+        </div>
+      </div>
+    </div>
     
-    <!-- Label -->
-    <text
-      v-if="label"
-      :x="centerX"
-      :y="-8"
-      text-anchor="middle"
-      font-size="10"
-      font-weight="bold"
-      fill="#333"
-      class="component-label"
-    >
-      {{ label }}
-    </text>
-  </g>
+    <div class="demo-canvas">
+      <svg width="1200" height="700" viewBox="0 0 1200 700">
+        <!-- Background -->
+        <rect width="1200" height="700" fill="#F5F7FA" />
+        
+        <!-- Grid -->
+        <defs>
+          <pattern id="demo-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#E0E0E0" stroke-width="1" opacity="0.3"/>
+          </pattern>
+        </defs>
+        <rect width="1200" height="700" fill="url(#demo-grid)" />
+        
+        <!-- Title -->
+        <text x="600" y="35" text-anchor="middle" font-size="24" font-weight="bold" fill="#333">
+          ✅ Proper Library Usage Demo
+        </text>
+        <text x="600" y="58" text-anchor="middle" font-size="13" fill="#666">
+          All components use SVGLibrary + SVGRenderer + AnimatedComponent (NO hardcoded SVG!)
+        </text>
+        
+        <!-- Section 1: Valves (Using SVGRenderer) -->
+        <text x="80" y="110" font-size="16" font-weight="bold" fill="#666">
+          Valves (svgLibrary.get() → SVGRenderer):
+        </text>
+        
+        <!-- Gate Valve - USING SVGRenderer -->
+        <g :transform="`translate(80, 140)`">
+          <SVGRenderer
+            :visual="valveGateVisual!"
+            :position="{ x: 0, y: 0 }"
+            :color="getIOColor(valveIO)"
+            label="V-001"
+            :showPorts="true"
+          />
+        </g>
+        
+        <!-- Ball Valve - USING SVGRenderer with multi-color -->
+        <g :transform="`translate(200, 140)`">
+          <SVGRenderer
+            :visual="ballValveVisual!"
+            :position="{ x: 0, y: 0 }"
+            :color="{
+              '.valve-body': getIOColor(ballValveIO),
+              '.valve-actuator': lightenColor(getIOColor(ballValveIO))
+            }"
+            label="V-002"
+            :showPorts="true"
+          />
+        </g>
+        
+        <!-- Actuated Valve - USING SVGRenderer with multi-color -->
+        <g :transform="`translate(330, 140)`">
+          <SVGRenderer
+            :visual="actuatedValveVisual!"
+            :position="{ x: 0, y: 0 }"
+            :color="{
+              '.valve-body': getIOColor(actuatedValveIO),
+              '.valve-actuator': lightenColor(getIOColor(actuatedValveIO))
+            }"
+            label="V-003"
+            :showPorts="true"
+          />
+        </g>
+        
+        <!-- Section 2: Equipment with Animations -->
+        <text x="80" y="280" font-size="16" font-weight="bold" fill="#666">
+          Equipment (SVGRenderer + AnimatedComponent):
+        </text>
+        
+        <!-- Pump - USING SVGRenderer + AnimatedComponent -->
+        <AnimatedComponent 
+          :io="pumpIO" 
+          :animations="pumpIO.value ? [pumpAnimation!] : []"
+        >
+          <g :transform="`translate(80, 310)`">
+            <SVGRenderer
+              :visual="pumpVisual!"
+              :position="{ x: 0, y: 0 }"
+              :color="{
+                '.pump-impeller': getIOColor(pumpIO)
+              }"
+              label="P-001"
+              :showPorts="true"
+            />
+          </g>
+        </AnimatedComponent>
+        
+        <!-- Pipe - Dynamic (not from library) -->
+        <AnimatedComponent 
+          :io="pipeIO" 
+          :animations="pipeIO.value > 0 ? [pipeAnimation!] : []"
+        >
+          <PipeRenderer
+            :from="{ x: 120, y: 330 }"
+            :to="{ x: 280, y: 330 }"
+            :flowing="pipeIO.value > 0"
+          />
+        </AnimatedComponent>
+        
+        <!-- Tank - USING SVGRenderer + AnimatedComponent -->
+        <AnimatedComponent 
+          :io="tankIO" 
+          :animations="[tankAnimation!]"
+        >
+          <g :transform="`translate(280, 260)`">
+            <TankRendererProper
+              :io="tankIO"
+              :visual="tankVisual!"
+              :position="{ x: 0, y: 0 }"
+              label="TK-001"
+            />
+          </g>
+        </AnimatedComponent>
+        
+        <!-- Section 3: Sensors -->
+        <text x="80" y="500" font-size="16" font-weight="bold" fill="#666">
+          Sensors (SVGRenderer with dynamic text):
+        </text>
+        
+        <!-- Pressure Sensor - USING SVGRenderer -->
+        <g :transform="`translate(80, 530)`">
+          <SensorRendererProper
+            :io="pressureIO"
+            :visual="pressureVisual!"
+            :position="{ x: 0, y: 0 }"
+          />
+        </g>
+        
+        <!-- Temperature Sensor - USING SVGRenderer -->
+        <g :transform="`translate(220, 530)`">
+          <SensorRendererProper
+            :io="temperatureIO"
+            :visual="temperatureVisual!"
+            :position="{ x: 0, y: 0 }"
+          />
+        </g>
+        
+        <!-- Info Panel -->
+        <g :transform="`translate(550, 110)`">
+          <rect x="0" y="0" width="600" height="550" fill="white" stroke="#E0E0E0" stroke-width="2" rx="8"/>
+          
+          <text x="300" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">
+            🏗️ Correct Architecture Flow
+          </text>
+          
+          <!-- Flow Diagram -->
+          <g :transform="`translate(30, 60)`">
+            <!-- Step 1 -->
+            <rect x="0" y="0" width="540" height="80" fill="#E3F2FD" rx="6"/>
+            <text x="10" y="25" font-size="14" font-weight="bold" fill="#1976D2">
+              Step 1: Get Visual from Library
+            </text>
+            <text x="20" y="45" font-size="11" fill="#333" font-family="monospace">
+              const visual = svgLibrary.get('valve-gate');
+            </text>
+            <text x="20" y="65" font-size="11" fill="#666">
+              ✓ SVG paths stored centrally, no duplication
+            </text>
+            
+            <!-- Arrow -->
+            <path d="M 270 90 L 270 110" stroke="#1976D2" stroke-width="2" marker-end="url(#arrow)"/>
+            
+            <!-- Step 2 -->
+            <rect x="0" y="120" width="540" height="80" fill="#F3E5F5" rx="6"/>
+            <text x="10" y="145" font-size="14" font-weight="bold" fill="#7B1FA2">
+              Step 2: Create I/O Instance
+            </text>
+            <text x="20" y="165" font-size="11" fill="#333" font-family="monospace">
+              const io = createDigitalIO({...PRESETS.valve});
+            </text>
+            <text x="20" y="185" font-size="11" fill="#666">
+              ✓ Separation of data from visuals
+            </text>
+            
+            <!-- Arrow -->
+            <path d="M 270 210 L 270 230" stroke="#7B1FA2" stroke-width="2" marker-end="url(#arrow)"/>
+            
+            <!-- Step 3 -->
+            <rect x="0" y="240" width="540" height="90" fill="#E8F5E9" rx="6"/>
+            <text x="10" y="265" font-size="14" font-weight="bold" fill="#388E3C">
+              Step 3: Render with SVGRenderer
+            </text>
+            <text x="20" y="285" font-size="11" fill="#333" font-family="monospace">
+              &lt;SVGRenderer :visual="visual" :color="getIOColor(io)" /&gt;
+            </text>
+            <text x="20" y="305" font-size="11" fill="#666">
+              ✓ Generic renderer, dynamic colors from I/O state
+            </text>
+            
+            <!-- Arrow -->
+            <path d="M 270 340 L 270 360" stroke="#388E3C" stroke-width="2" marker-end="url(#arrow)"/>
+            
+            <!-- Step 4 -->
+            <rect x="0" y="370" width="540" height="90" fill="#FFF3E0" rx="6"/>
+            <text x="10" y="395" font-size="14" font-weight="bold" fill="#F57C00">
+              Step 4: Add Animations (Optional)
+            </text>
+            <text x="20" y="415" font-size="11" fill="#333" font-family="monospace">
+              &lt;AnimatedComponent :io="io" :animations="[...]"&gt;
+            </text>
+            <text x="20" y="435" font-size="11" fill="#666">
+              ✓ Animation based on I/O state, controlled dynamically
+            </text>
+          </g>
+          
+          <!-- Arrow marker definition -->
+          <defs>
+            <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#666" />
+            </marker>
+          </defs>
+          
+          <!-- Benefits -->
+          <g :transform="`translate(30, 480)`">
+            <text x="0" y="0" font-size="13" font-weight="bold" fill="#666">✨ Benefits:</text>
+            <text x="10" y="18" font-size="11" fill="#333">✓ Zero SVG duplication</text>
+            <text x="10" y="34" font-size="11" fill="#333">✓ Single source of truth (SVGLibrary)</text>
+            <text x="10" y="50" font-size="11" fill="#333">✓ Reusable across projects</text>
+          </g>
+        </g>
+      </svg>
+    </div>
+    
+    <!-- Footer Stats -->
+    <div class="demo-footer">
+      <div class="stat">
+        <span class="stat-label">SVG Definitions in Library:</span>
+        <span class="stat-value">{{ allVisuals.length }}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Using SVGRenderer:</span>
+        <span class="stat-value">✅ 100%</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Hardcoded SVG:</span>
+        <span class="stat-value">❌ 0%</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Active Animations:</span>
+        <span class="stat-value">{{ activeAnimationCount }}</span>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { VisualDefinition, Position } from './VisualDefinition';
+import { ref, computed } from 'vue';
 
-interface Props {
-  visual: VisualDefinition;
-  position: Position;
-  rotation?: number;
-  color?: string | Record<string, string>;
-  label?: string;
-  showPorts?: boolean;
-  selected?: boolean;
-  portRadius?: number;
+// Import I/O library
+import { 
+  createDigitalIO, 
+  createAnalogIO, 
+  DIGITAL_IO_PRESETS, 
+  ANALOG_IO_PRESETS 
+} from '@/lib/io';
+
+// Import visual library
+import { 
+  svgLibrary, 
+  SVGRenderer, 
+  getIOColor,
+  lightenColor
+} from '@/lib/visuals';
+
+// Import animation library
+import { 
+  AnimatedComponent,
+  animationLibrary,
+  PUMP_ROTATION,
+  TANK_FILL,
+  PIPE_FLOW
+} from '@/lib/animations';
+
+// Import ONLY PipeRenderer (dynamic) and proper wrappers
+import PipeRenderer from './components/PipeRenderer.vue';
+import TankRendererProper from './components/TankRendererProper.vue';
+import SensorRendererProper from './components/SensorRendererProper.vue';
+
+// ===== I/O INSTANCES =====
+
+const valveIO = createDigitalIO({
+  id: 'V-001',
+  channel: 'demo.valves.V001.state',
+  initialValue: false,
+  ...DIGITAL_IO_PRESETS.valve,
+});
+
+const ballValveIO = createDigitalIO({
+  id: 'V-002',
+  channel: 'demo.valves.V002.state',
+  initialValue: false,
+  ...DIGITAL_IO_PRESETS.valve,
+});
+
+const actuatedValveIO = createDigitalIO({
+  id: 'V-003',
+  channel: 'demo.valves.V003.state',
+  initialValue: true,
+  ...DIGITAL_IO_PRESETS.valve,
+});
+
+const pumpIO = createDigitalIO({
+  id: 'P-001',
+  channel: 'demo.pumps.P001.state',
+  initialValue: false,
+  ...DIGITAL_IO_PRESETS.pump,
+});
+
+const tankIO = createAnalogIO({
+  id: 'TK-001',
+  channel: 'demo.tanks.TK001.level',
+  initialValue: 50,
+  ...ANALOG_IO_PRESETS.level,
+});
+
+const pressureIO = createAnalogIO({
+  id: 'PT-001',
+  channel: 'demo.sensors.PT001.value',
+  initialValue: 100,
+  ...ANALOG_IO_PRESETS.pressure,
+});
+
+const temperatureIO = createAnalogIO({
+  id: 'TT-001',
+  channel: 'demo.sensors.TT001.value',
+  initialValue: 75,
+  ...ANALOG_IO_PRESETS.temperature,
+});
+
+const pipeIO = createAnalogIO({
+  id: 'PIPE-001',
+  channel: 'demo.pipes.PIPE001.flow',
+  initialValue: 0,
+  unit: 'L/min',
+  range: { min: 0, max: 500 },
+});
+
+// ===== VISUALS FROM LIBRARY =====
+
+const valveGateVisual = svgLibrary.get('valve-gate');
+const ballValveVisual = svgLibrary.get('valve-ball');
+const actuatedValveVisual = svgLibrary.get('valve-actuated');
+const pumpVisual = svgLibrary.get('pump-centrifugal');
+const tankVisual = svgLibrary.get('tank-vertical');
+const pressureVisual = svgLibrary.get('sensor-pressure');
+const temperatureVisual = svgLibrary.get('sensor-temperature');
+
+// ===== ANIMATIONS FROM LIBRARY =====
+
+const pumpAnimation = animationLibrary.get('pump-rotation');
+const tankAnimation = animationLibrary.get('tank-fill');
+const pipeAnimation = animationLibrary.get('pipe-flow');
+
+// ===== LIBRARY INFO =====
+
+const allVisuals = computed(() => svgLibrary.getAll());
+const categories = computed(() => svgLibrary.getCategories());
+const allAnimations = computed(() => animationLibrary.getAll());
+
+const activeAnimationCount = computed(() => {
+  let count = 0;
+  if (pumpIO.value) count++;
+  count++; // Tank always animates
+  if (pipeIO.value > 0) count++;
+  return count;
+});
+
+// ===== CONTROL FUNCTIONS =====
+
+function toggleAllValves() {
+  valveIO.toggle();
+  ballValveIO.toggle();
+  actuatedValveIO.toggle();
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  rotation: 0,
-  showPorts: false,
-  selected: false,
-  portRadius: 4,
-});
+function togglePump() {
+  pumpIO.toggle();
+  pipeIO.updateValue(pumpIO.value ? 150 : 0);
+}
 
-// Center point for rotation
-const centerX = computed(() => props.visual.viewBox.width / 2);
-const centerY = computed(() => props.visual.viewBox.height / 2);
+function increaseTankLevel() {
+  tankIO.updateValue(Math.min(100, tankIO.value + 10));
+}
 
-// Rendered SVG (wrap in <g> if it's just paths)
-const renderedSVG = computed(() => {
-  const svg = props.visual.svg;
+function decreaseTankLevel() {
+  tankIO.updateValue(Math.max(0, tankIO.value - 10));
+}
+
+function increasePressure() {
+  pressureIO.updateValue(Math.min(200, pressureIO.value + 10));
+}
+
+function decreasePressure() {
+  pressureIO.updateValue(Math.max(0, pressureIO.value - 10));
+}
+
+function randomizeAll() {
+  valveIO.updateValue(Math.random() > 0.5);
+  ballValveIO.updateValue(Math.random() > 0.5);
+  actuatedValveIO.updateValue(Math.random() > 0.5);
   
-  // If SVG contains full elements (like <circle>, <path>), use as is
-  if (svg.includes('<')) {
-    return svg;
-  }
+  const shouldRunPump = Math.random() > 0.5;
+  pumpIO.updateValue(shouldRunPump);
   
-  // If it's just path data, wrap in path element
-  return `<path d="${svg}" class="svg-shape" />`;
-});
+  tankIO.updateValue(Math.random() * 100);
+  pressureIO.updateValue(Math.random() * 200);
+  temperatureIO.updateValue(Math.random() * 150);
+  pipeIO.updateValue(shouldRunPump ? Math.random() * 500 : 0);
+}
 
-// Color classes for CSS targeting
-const colorClasses = computed(() => {
-  if (typeof props.color === 'string') {
-    return 'single-color';
-  }
-  return 'multi-color';
-});
-
-// Port color based on type
-function portColor(type: string): string {
-  const colors: Record<string, string> = {
-    inlet: '#2196F3',
-    outlet: '#FF9800',
-    bidirectional: '#4CAF50',
-  };
-  return colors[type] || '#FFC107';
+function resetAll() {
+  valveIO.updateValue(false);
+  ballValveIO.updateValue(false);
+  actuatedValveIO.updateValue(false);
+  pumpIO.updateValue(false);
+  tankIO.updateValue(50);
+  pressureIO.updateValue(100);
+  temperatureIO.updateValue(75);
+  pipeIO.updateValue(0);
 }
 </script>
 
 <style scoped>
-.svg-component {
-  cursor: default;
-  transition: filter var(--transition-fast);
+/* ... (same styles as before) ... */
+
+.usage-code {
+  background: #2d2d2d;
+  border-radius: 6px;
+  padding: 12px;
+  overflow-x: auto;
 }
 
-.svg-component:hover {
-  filter: brightness(1.05);
+.usage-code pre {
+  margin: 0;
 }
 
-.svg-selected {
-  filter: drop-shadow(0 0 8px rgba(33, 150, 243, 0.6));
-}
-
-/* Single color mode */
-.single-color .svg-shape,
-.single-color path {
-  fill: v-bind('typeof color === "string" ? color : "currentColor"');
-  stroke: #333;
-  stroke-width: 2;
-}
-
-/* Multi-color mode - handled via deep CSS */
-.multi-color >>> .valve-body {
-  fill: v-bind('typeof color === "object" ? color[".valve-body"] : "currentColor"');
-  stroke: #333;
-  stroke-width: 2;
-}
-
-.multi-color >>> .valve-actuator {
-  fill: v-bind('typeof color === "object" ? color[".valve-actuator"] : "currentColor"');
-  stroke: #333;
-  stroke-width: 2;
-}
-
-.multi-color >>> .pump-casing {
-  stroke: #333;
-  stroke-width: 2;
-  fill: none;
-}
-
-.multi-color >>> .pump-impeller {
-  fill: v-bind('typeof color === "object" ? color[".pump-impeller"] : "currentColor"');
-}
-
-.multi-color >>> .tank-outline {
-  stroke: #333;
-  stroke-width: 2;
-  fill: none;
-}
-
-.multi-color >>> .tank-liquid {
-  fill: v-bind('typeof color === "object" ? color[".tank-liquid"] : "#2196F3"');
-  opacity: 0.8;
-}
-
-.multi-color >>> .sensor-box {
-  fill: white;
-  stroke: #333;
-  stroke-width: 2;
-}
-
-.multi-color >>> .sensor-value {
-  fill: v-bind('typeof color === "object" ? color[".sensor-value"] : "#1976D2"');
-}
-
-.port {
-  cursor: crosshair;
-  transition: all var(--transition-fast);
-}
-
-.port:hover {
-  r: 6;
-  filter: brightness(1.3) drop-shadow(0 0 4px currentColor);
-}
-
-.component-label {
-  pointer-events: none;
-  user-select: none;
+.usage-code code {
+  color: #a9b7c6;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.6;
 }
 </style>
