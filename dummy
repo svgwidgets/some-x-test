@@ -1,65 +1,52 @@
 <template>
   <g>
-    <!-- Base SVG -->
-    <rect
-      x="0"
-      y="0"
-      width="80"
-      height="60"
-      rx="4"
-      fill="white"
-      stroke="#333"
-      stroke-width="2"
+    <line
+      :x1="from.x"
+      :y1="from.y"
+      :x2="to.x"
+      :y2="to.y"
+      :stroke="pipeColor"
+      stroke-width="3"
     />
     
-    <!-- Tag -->
-    <text x="40" y="20" text-anchor="middle" font-size="12" font-weight="bold" fill="#666">
-      {{ tag }}
-    </text>
-    
-    <!-- Dynamic Value -->
-    <text x="40" y="40" text-anchor="middle" font-size="16" font-weight="bold" :fill="valueColor">
-      {{ formattedValue }}
-    </text>
-    
-    <!-- Unit -->
-    <text x="40" y="54" text-anchor="middle" font-size="10" fill="#999">
-      {{ io.unit }}
-    </text>
-    
-    <!-- Label -->
-    <text 
-      v-if="showLabel"
-      x="40" 
-      y="-8" 
-      text-anchor="middle" 
-      font-size="10" 
-      font-weight="bold" 
-      fill="#333"
-    >
-      {{ io.id }}
-    </text>
+    <g v-if="flowing">
+      <circle
+        v-for="dot in flowDots"
+        :key="dot.id"
+        r="3"
+        fill="#2196F3"
+      >
+        <animateMotion
+          :path="motionPath"
+          dur="2000ms"
+          repeatCount="indefinite"
+          :begin="`${dot.offset}ms`"
+        />
+      </circle>
+    </g>
   </g>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { AnalogIO } from '../io';
-import { getIOColor } from '../visuals';
 
 interface Props {
-  io: AnalogIO;
-  visualId?: string;
-  showLabel?: boolean;
-  tag?: string;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  flowing?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  visualId: 'sensor-pressure',
-  showLabel: true,
+  flowing: false,
 });
 
-const valueColor = computed(() => getIOColor(props.io));
-const formattedValue = computed(() => props.io.value.toFixed(props.io.precision || 1));
-const tag = computed(() => props.tag || props.io.id.split('-')[0]);
+const pipeColor = computed(() => props.flowing ? '#1976D2' : '#666');
+const motionPath = computed(() => `M ${props.from.x} ${props.from.y} L ${props.to.x} ${props.to.y}`);
+
+const flowDots = [
+  { id: 1, offset: 0 },
+  { id: 2, offset: 500 },
+  { id: 3, offset: 1000 },
+  { id: 4, offset: 1500 },
+];
 </script>
