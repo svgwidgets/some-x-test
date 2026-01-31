@@ -1,45 +1,77 @@
-/**
- * Sensor Visual Definitions
- */
+<template>
+  <g>
+    <!-- Render SVG from definition -->
+    <g v-html="parsedSvg"></g>
+    
+    <!-- Ports -->
+    <g v-if="showPorts">
+      <circle 
+        v-for="port in visual.ports"
+        :key="port.id"
+        :cx="port.position.x" 
+        :cy="port.position.y" 
+        r="4" 
+        :fill="port.type === 'inlet' ? '#2196F3' : '#FF9800'" 
+        stroke="#333" 
+        stroke-width="1.5"
+      />
+    </g>
+    
+    <!-- Label -->
+    <text 
+      v-if="showLabel"
+      :x="centerX" 
+      :y="-8" 
+      text-anchor="middle" 
+      font-size="10" 
+      font-weight="bold" 
+      fill="#333"
+    >
+      {{ io.id }}
+    </text>
+  </g>
+</template>
 
-import type { VisualDefinition } from '../VisualDefinition';
+<script setup lang="ts">
+import { computed } from 'vue';
+import type { DigitalIO } from '../io';
+import { svgLibrary, getIOColor } from '../visuals';
 
-export const SENSOR_PRESSURE: VisualDefinition = {
-  id: 'sensor-pressure',
-  name: 'Pressure Sensor',
-  category: 'Sensors',
-  icon: 'PT',
-  description: 'Pressure transmitter (PT)',
-  svg: `
-    <rect x="0" y="0" width="80" height="60" rx="4" class="sensor-box" fill="white" stroke="#333" stroke-width="2" />
-    <text x="40" y="20" class="sensor-tag" text-anchor="middle" font-size="12" font-weight="bold" fill="#666">PT</text>
-    <text x="40" y="40" class="sensor-value" text-anchor="middle" font-size="16" font-weight="bold" fill="#1976D2">0.0</text>
-    <text x="40" y="54" class="sensor-unit" text-anchor="middle" font-size="10" fill="#999">bar</text>
-  `,
-  viewBox: { width: 80, height: 60 },
-  ports: [],
-  colorTargets: [
-    { selector: '.sensor-value', property: 'fill', defaultColor: '#1976D2' },
-  ],
-};
+interface Props {
+  io: DigitalIO;
+  visualId?: string;
+  showPorts?: boolean;
+  showLabel?: boolean;
+}
 
-export const SENSOR_TEMPERATURE: VisualDefinition = {
-  id: 'sensor-temperature',
-  name: 'Temperature Sensor',
-  category: 'Sensors',
-  icon: 'TT',
-  description: 'Temperature transmitter (TT)',
-  svg: `
-    <rect x="0" y="0" width="80" height="60" rx="4" class="sensor-box" fill="white" stroke="#333" stroke-width="2" />
-    <text x="40" y="20" class="sensor-tag" text-anchor="middle" font-size="12" font-weight="bold" fill="#666">TT</text>
-    <text x="40" y="40" class="sensor-value" text-anchor="middle" font-size="16" font-weight="bold" fill="#1976D2">0.0</text>
-    <text x="40" y="54" class="sensor-unit" text-anchor="middle" font-size="10" fill="#999">°C</text>
-  `,
-  viewBox: { width: 80, height: 60 },
-  ports: [],
-  colorTargets: [
-    { selector: '.sensor-value', property: 'fill', defaultColor: '#1976D2' },
-  ],
-};
+const props = withDefaults(defineProps<Props>(), {
+  visualId: 'valve-ax',
+  showPorts: true,
+  showLabel: true,
+});
 
-export const SENSOR_VISUALS = [SENSOR_PRESSURE, SENSOR_TEMPERATURE];
+const visual = computed(() => {
+  const v = svgLibrary.get(props.visualId);
+  if (!v) {
+    console.warn(`[Valve] Visual '${props.visualId}' not found`);
+    return svgLibrary.get('valve-ax')!;
+  }
+  return v;
+});
+
+const centerX = computed(() => visual.value.viewBox.width / 2);
+const valveColor = computed(() => getIOColor(props.io));
+
+const parsedSvg = computed(() => {
+  const svg = visual.value.svg;
+  
+  // If SVG already contains elements, inject color
+  if (svg.includes('<')) {
+    return svg.replace(/fill="[^"]*"/g, `fill="${valveColor.value}"`);
+  }
+  
+  // If just paths, wrap and color them
+  const paths = svg.split(' M ').map((p, i) => i === 0 ? p : 'M ' + p);
+  return paths.map(p => `<path d="${p}" fill="${valveColor.value}" stroke="#333" stroke-width="2" />`).join('');
+});
+</script>
