@@ -1,33 +1,43 @@
 <template>
   <g>
-    <!-- Use SVGRenderer for base visual -->
-    <SVGRenderer
-      :visual="visual"
-      :position="position"
-      :color="{
-        '.sensor-value': getIOColor(io)
-      }"
-      :label="io.id"
-      :showPorts="false"
+    <path
+      v-for="(path, idx) in svgPaths"
+      :key="idx"
+      :d="path"
+      :fill="valveColor"
+      stroke="#333"
+      stroke-width="2"
     />
     
-    <!-- Overlay dynamic value (SVG text elements can't be in visual definition) -->
-    <text x="40" y="40" text-anchor="middle" font-size="16" font-weight="bold" :fill="getIOColor(io)">
-      {{ io.value.toFixed(io.precision || 1) }}
+    <circle cx="0" cy="12" r="4" fill="#2196F3" stroke="#333" stroke-width="1.5"/>
+    <circle cx="40" cy="12" r="4" fill="#FF9800" stroke="#333" stroke-width="1.5"/>
+    
+    <text x="20" y="-8" text-anchor="middle" font-size="10" font-weight="bold" fill="#333">
+      {{ label }}
     </text>
   </g>
 </template>
 
 <script setup lang="ts">
-import type { AnalogIO } from '@/lib/io';
+import { computed } from 'vue';
+import type { DigitalIO } from '@/lib/io';
 import type { VisualDefinition, Position } from '@/lib/visuals';
-import { SVGRenderer, getIOColor } from '@/lib/visuals';
+import { getIOColor } from '@/lib/visuals';
 
 interface Props {
-  io: AnalogIO;
+  io: DigitalIO;
   visual: VisualDefinition;
   position: Position;
+  label?: string;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
+
+const valveColor = computed(() => getIOColor(props.io));
+
+const svgPaths = computed(() => {
+  const svg = props.visual.svg;
+  // Split multiple paths (M...Z M...Z)
+  return svg.split(' M ').map((p, i) => i === 0 ? p : 'M ' + p);
+});
 </script>
