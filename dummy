@@ -1,112 +1,175 @@
-/**
- * CSS Animations for P&ID Components
- */
+# Animation System Usage Examples
 
-/* Rotation animation */
-@keyframes rotate {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+## Basic Usage
+
+### Apply Animation to Component
+```typescript
+import { animationLibrary, animationController } from '@/lib/animations';
+import { createDigitalIO, DIGITAL_IO_PRESETS } from '@/lib/io';
+
+// Create I/O
+const pumpIO = createDigitalIO({
+  id: 'P-001',
+  channel: 'plc1.pumps.P001.state',
+  ...DIGITAL_IO_PRESETS.pump,
+});
+
+// Get animation
+const pumpAnimation = animationLibrary.get('pump-rotation');
+
+// Get target element
+const impellerElement = document.querySelector('.pump-impeller');
+
+// Apply animation
+if (impellerElement && pumpAnimation) {
+  animationController.applyAnimation(
+    impellerElement as SVGElement,
+    pumpAnimation,
+    pumpIO
+  );
+}
+```
+
+### Use Animated Component Wrapper
+```vue
+<template>
+  <svg width="800" height="600">
+    <AnimatedComponent :io="pumpIO" :animations="[pumpAnimation]">
+      <SVGRenderer
+        :visual="pumpVisual"
+        :position="{ x: 100, y: 200 }"
+        :color="pumpColor"
+      />
+    </AnimatedComponent>
+  </svg>
+</template>
+
+<script setup>
+import { AnimatedComponent, animationLibrary } from '@/lib/animations';
+import { createDigitalIO, DIGITAL_IO_PRESETS } from '@/lib/io';
+import { SVGRenderer, svgLibrary, getIOColor } from '@/lib/visuals';
+
+const pumpIO = createDigitalIO({
+  id: 'P-001',
+  channel: 'plc1.pumps.P001.state',
+  ...DIGITAL_IO_PRESETS.pump,
+});
+
+const pumpVisual = svgLibrary.get('pump-centrifugal');
+const pumpAnimation = animationLibrary.get('pump-rotation');
+const pumpColor = getIOColor(pumpIO);
+</script>
+```
+
+## Custom Animations
+
+### Create Custom Animation
+```typescript
+import { animationLibrary } from '@/lib/animations';
+import type { AnimationDefinition } from '@/lib/animations';
+import { isAnalogIO } from '@/lib/io';
+
+const customAnimation: AnimationDefinition = {
+  id: 'custom-rotation',
+  type: 'rotation',
+  target: '.custom-element',
+  condition: (io) => isAnalogIO(io) && io.value > 50,
+  config: {
+    duration: 1000,
+    easing: 'ease-in-out',
+    repeat: true,
+  },
+  valueCalculator: (io) => {
+    // Map 0-100 to 0-360 degrees
+    return isAnalogIO(io) ? (io.value / 100) * 360 : 0;
+  },
+  description: 'Custom rotation based on value',
+};
+
+// Register it
+animationLibrary.register(customAnimation);
+```
+
+### Tank Fill Animation
+```typescript
+import { TANK_FILL, animationController } from '@/lib/animations';
+import { createAnalogIO, ANALOG_IO_PRESETS } from '@/lib/io';
+
+const tankLevel = createAnalogIO({
+  id: 'LT-001',
+  channel: 'plc1.tanks.TK001.level',
+  ...ANALOG_IO_PRESETS.level,
+});
+
+const liquidElement = document.querySelector('.tank-liquid');
+
+if (liquidElement) {
+  animationController.applyAnimation(
+    liquidElement as SVGElement,
+    TANK_FILL,
+    tankLevel
+  );
 }
 
-/* Flow animation (for dots) */
-@keyframes flow {
-  from {
-    offset-distance: 0%;
-  }
-  to {
-    offset-distance: 100%;
-  }
-}
+// Update level - animation updates automatically
+tankLevel.updateValue(75);
+```
 
-/* Blink animation */
-@keyframes blink {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
+## Animation Conditions
 
-/* Pulse animation */
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(1.05);
-  }
-}
+### Use Predefined Conditions
+```typescript
+import { ANIMATION_CONDITIONS } from '@/lib/animations';
 
-/* Dash animation (for pipes) */
-@keyframes dash {
-  to {
-    stroke-dashoffset: -10;
-  }
-}
+const myAnimation = {
+  id: 'my-anim',
+  type: 'rotation',
+  target: '.element',
+  condition: ANIMATION_CONDITIONS.digitalTrue, // Animate when true
+  config: { duration: 2000 },
+};
 
-/* Fade in */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
+// Or with threshold
+const thresholdAnimation = {
+  id: 'threshold-anim',
+  type: 'opacity',
+  target: '.indicator',
+  condition: ANIMATION_CONDITIONS.analogAboveThreshold(75), // Animate when > 75
+  config: { duration: 500 },
+};
+```
 
-/* Fade out */
-@keyframes fadeOut {
-  from {
-    opacity: 1;
+### Custom Conditions
+```typescript
+const customCondition = (io: IOComponent): boolean => {
+  if (isAnalogIO(io)) {
+    return io.value > 50 && io.getState() === 'normal';
   }
-  to {
-    opacity: 0;
-  }
-}
+  return false;
+};
 
-/* Shake animation (for alarms) */
-@keyframes shake {
-  0%, 100% {
-    transform: translateX(0);
-  }
-  10%, 30%, 50%, 70%, 90% {
-    transform: translateX(-2px);
-  }
-  20%, 40%, 60%, 80% {
-    transform: translateX(2px);
-  }
-}
+const animation = {
+  id: 'custom',
+  type: 'scale',
+  target: '.element',
+  condition: customCondition,
+  config: { duration: 300 },
+};
+```
 
-/* Bounce animation */
-@keyframes bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
+## Value Calculators
 
-/* Utility classes */
-.animated {
-  animation-fill-mode: both;
-}
+### Map Analog Value to Animation Value
+```typescript
+import { VALUE_CALCULATORS } from '@/lib/animations';
 
-.animated-infinite {
-  animation-iteration-count: infinite;
-}
-
-.animated-paused {
-  animation-play-state: paused;
-}
-
-.animated-running {
-  animation-play-state: running;
-}
+const gaugeAnimation = {
+  id: 'gauge-needle',
+  type: 'rotation',
+  target: '.needle',
+  condition: () => true,
+  config: { duration: 300 },
+  // Map 0-100% to -90° to +90°
+  valueCalculator: VALUE_CALCULATORS.mapRange(0, 100, -90, 90),
+};
+```
