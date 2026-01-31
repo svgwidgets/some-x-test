@@ -1,14 +1,32 @@
 <template>
   <g>
-    <!-- Valve body paths (no v-html) -->
+    <!-- Valve body -->
     <path
-      v-for="(path, idx) in paths"
-      :key="idx"
-      :d="path"
-      :fill="valveColor"
+      :d="elements.body.d"
+      :fill="bodyColor"
       stroke="#333"
       stroke-width="2"
       class="valve-body"
+    />
+    
+    <!-- Stem -->
+    <line
+      :x1="elements.stem.x1"
+      :y1="elements.stem.y1"
+      :x2="elements.stem.x2"
+      :y2="elements.stem.y2"
+      stroke="#333"
+      stroke-width="1.5"
+      class="valve-stem"
+    />
+    
+    <!-- Actuator -->
+    <path
+      :d="elements.actuator.d"
+      :fill="actuatorColor"
+      stroke="#333"
+      stroke-width="1.5"
+      class="valve-actuator"
     />
     
     <!-- Ports -->
@@ -25,11 +43,37 @@
       />
     </g>
     
+    <!-- Position display -->
+    <text 
+      v-if="showPosition"
+      :x="positionDisplay.x"
+      :y="positionDisplay.y"
+      text-anchor="middle"
+      font-size="8"
+      font-weight="bold"
+      :fill="positionColor"
+    >
+      {{ Math.round(io.value) }}%
+    </text>
+    
+    <!-- State label -->
+    <text 
+      v-if="showState"
+      :x="stateLabel.x"
+      :y="stateLabel.y"
+      text-anchor="middle"
+      font-size="7"
+      font-weight="bold"
+      fill="#666"
+    >
+      {{ stateText }}
+    </text>
+    
     <!-- Label -->
     <text 
       v-if="showLabel"
       :x="centerX" 
-      y="-8" 
+      y="-26" 
       text-anchor="middle" 
       font-size="10" 
       font-weight="bold" 
@@ -42,22 +86,44 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { DigitalIO } from '../../io';
-import { svgLibrary, getIOColor } from '../../visuals';
+import type { AnalogIO } from '../../io';
+import { svgLibrary, getIOColor, lightenColor } from '../../visuals';
 
 interface Props {
-  io: DigitalIO;
+  io: AnalogIO;
   showPorts?: boolean;
   showLabel?: boolean;
+  showPosition?: boolean;
+  showState?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showPorts: true,
   showLabel: true,
+  showPosition: true,
+  showState: true,
 });
 
-const visual = computed(() => svgLibrary.get('gate-valve')!);
-const paths = computed(() => visual.value.metadata?.paths || []);
+const visual = computed(() => svgLibrary.get('control-valve')!);
+const elements = computed(() => visual.value.metadata?.elements || {});
+const positionDisplay = computed(() => visual.value.metadata?.positionDisplay || { x: 18, y: 20 });
+const stateLabel = computed(() => visual.value.metadata?.stateLabel || { x: 18, y: -18 });
 const centerX = computed(() => visual.value.viewBox.width / 2);
-const valveColor = computed(() => getIOColor(props.io));
+
+const bodyColor = computed(() => getIOColor(props.io));
+const actuatorColor = computed(() => lightenColor(bodyColor.value));
+
+const positionColor = computed(() => {
+  const value = props.io.value;
+  if (value < 10) return '#F44336';
+  if (value > 90) return '#4CAF50';
+  return '#FF9800';
+});
+
+const stateText = computed(() => {
+  const value = props.io.value;
+  if (value < 10) return 'CLOSED';
+  if (value > 90) return 'OPEN';
+  return 'REG';
+});
 </script>
