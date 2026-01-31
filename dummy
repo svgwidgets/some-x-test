@@ -1,25 +1,325 @@
 /**
- * Analog I/O presets
+ * Animation Controller
+ * 
+ * Manages and applies animations to components based on I/O state.
  */
-export const ANALOG_IO_PRESETS = {
-  // ... existing presets ...
+
+import type { IOComponent } from '../io/IOComponent';
+import type { AnimationDefinition, AnimationState } from './AnimationDefinition';
+import { isDigitalIO, isAnalogIO } from '../io';
+
+/**
+ * Animation Controller class
+ */
+export class AnimationController {
+  private activeAnimations: Map<string, AnimationState>;
+  private animationFrameId: number | null;
+  
+  constructor() {
+    this.activeAnimations = new Map();
+    this.animationFrameId = null;
+  }
   
   /**
-   * Control Valve Position (0-100%)
+   * Check if animation should be active
    */
-  controlValve: {
-    unit: '%',
-    range: { min: 0, max: 100 },
-    precision: 1,
-    warnings: {
-      low: 5,   // Nearly closed
-      high: 95, // Nearly fully open
-    },
-    alarms: {
-      low: 2,      // Stuck closed
-      high: 98,    // Stuck open
-      lowLow: 0,   // Completely closed
-      highHigh: 100, // Completely open
-    },
-  },
-};
+  shouldAnimate(animation: AnimationDefinition, io: IOComponent): boolean {
+    try {
+      return animation.condition(io);
+    } catch (error) {
+      console.error(`[AnimationController] Condition error for ${animation.id}:`, error);
+      return false;
+    }
+  }
+  
+  /**
+   * Calculate animation value
+   */
+  calculateValue(animation: AnimationDefinition, io: IOComponent): any {
+    if (!animation.valueCalculator) return null;
+    
+    try {
+      return animation.valueCalculator(io);
+    } catch (error) {
+      console.error(`[AnimationController] Value calculation error for ${animation.id}:`, error);
+      return null;
+    }
+  }
+  
+  /**
+   * Apply animation to element
+   */
+  applyAnimation(
+    element: SVGElement | HTMLElement,
+    animation: AnimationDefinition,
+    io: IOComponent
+  ): void {
+    const shouldAnimate = this.shouldAnimate(animation, io);
+    const stateKey = `${io.id}-${animation.id}`;
+    
+    if (!shouldAnimate) {
+      // Stop animation
+      this.stopAnimation(element, animation);
+      this.activeAnimations.delete(stateKey);
+      return;
+    }
+    
+    // Start or update animation
+    const calculatedValue = this.calculateValue(animation, io);
+    
+    switch (animation.type) {
+      case 'rotation':
+        this.applyRotation(element, animation, calculatedValue);
+        break;
+      
+      case 'fill':
+        this.applyFill(element, animation, calculatedValue);
+        break;
+      
+      case 'flow':
+        this.applyFlow(element, animation, io);
+        break;
+      
+      case 'scale':
+        this.applyScale(element, animation, calculatedValue);
+        break;
+      
+      case 'opacity':
+        this.applyOpacity(element, animation, calculatedValue);
+        break;
+      
+      case 'stroke-dash':
+        this.applyStrokeDash(element, animation);
+        break;
+    }
+    
+    // Track animation state
+    this.activeAnimations.set(stateKey, {
+      animationId: animation.id,
+      componentId: io.id,
+      isActive: true,
+      startTime: Date.now(),
+      currentValue: calculatedValue,
+    });
+  }
+  
+  /**
+   * Apply rotation animation
+   */
+  private applyRotation(
+    element: SVGElement | HTMLElement,
+    animation: AnimationDefinition,
+    value?: number
+  ): void {
+    const config = animation.config;
+    const duration = config.duration || 2000;
+    
+    // If value provided (e.g., gauge needle), set rotation directly
+    if (value !== undefined && value !== null) {
+      element.style.transition = `transform ${duration}ms ${config.easing || 'ease-out'}`;
+      element.style.transform = `rotate(${value}deg)`;
+      element.style.animation = ''; // Clear any CSS animation
+    } else {
+      // Continuous rotation (pump, motor)
+      element.style.animation = `rotate ${duration}ms ${config.easing || 'linear'} infinite`;
+    }
+  }
+  
+  /**
+   * Apply fill animation (for tanks)
+   */
+  private applyFill(
+    element: SVGElement | HTMLElement,
+    animation: AnimationDefinition,
+    percentage?: number
+  ): void {
+    if (percentage === undefined || percentage === null) {
+      percentage = 0;
+    }
+    
+    const config = animation.config;
+    const duration = config.duration || 500;
+    
+    // For SVG rect (tank liquid)
+    if (element instanceof SVGRectElement) {
+      // Tank dimensions (from TankRenderer)
+      const tankTop = 15;
+      const tankBottom = 105;
+      const fillableHeight = tankBottom - tankTop;
+      
+      const liquidHeight = (percentage / 100) * fillableHeight;
+      const liquidY = tankBottom - liquidHeight;
+      
+      // Apply transition
+      element.style.transition = `y ${duration}ms ${config.easing || 'ease-out'}, height ${duration}ms ${config.easing || 'ease-out'}`;
+      element.setAttribute('y', liquidY.toString());
+      element.setAttribute('height', liquidHeight.toString());
+    }
+  }
+  
+  /**
+   * Apply flow animation (for pipes)
+   */
+  private applyFlow(
+    element: SVGElement | HTMLElement,
+    animation: AnimationDefinition,
+    io: IOComponent
+  ): void {
+    const config = animation.config;
+    const duration = config.duration || 2000;
+    
+    // Flow dots are animated via SVG animateMotion in PipeRenderer
+    // This just ensures the class is present
+    if (element.classList) {
+      element.classList.add('flow-active');
+    }
+  }
+  
+  /**
+   * Apply scale animation
+   */
+  private applyScale(
+    element: SVGElement | HTMLElement,
+    animation: AnimationDefinition,
+    value?: number
+  ): void {
+    const config = animation.config;
+    const duration = config.duration || 300;
+    const scale = value || 1;
+    
+    element.style.transition = `transform ${duration}ms ${config.easing || 'ease-out'}`;
+    element.style.transform = `scale(${scale})`;
+  }
+  
+  /**
+   * Apply opacity animation
+   */
+  private applyOpacity(
+    element: SVGElement | HTMLElement,
+    animation: AnimationDefinition,
+    value?: number
+  ): void {
+    const config = animation.config;
+    const duration = config.duration || 1000;
+    
+    if (config.repeat) {
+      // Blinking effect
+      element.style.animation = `blink ${duration}ms ${config.easing || 'linear'} infinite ${config.direction || 'alternate'}`;
+    } else if (value !== undefined) {
+      // Direct opacity
+      element.style.transition = `opacity ${duration}ms ${config.easing || 'ease'}`;
+      element.style.opacity = value.toString();
+    }
+  }
+  
+  /**
+   * Apply stroke-dash animation
+   */
+  private applyStrokeDash(
+    element: SVGElement | HTMLElement,
+    animation: AnimationDefinition
+  ): void {
+    const config = animation.config;
+    const duration = config.duration || 1000;
+    
+    if (element instanceof SVGElement) {
+      // Set stroke-dasharray and animate stroke-dashoffset
+      element.style.strokeDasharray = '10 5';
+      element.style.animation = `dash ${duration}ms linear infinite`;
+    }
+  }
+  
+  /**
+   * Stop animation - FIXED VERSION
+   */
+  private stopAnimation(
+    element: SVGElement | HTMLElement,
+    animation: AnimationDefinition
+  ): void {
+    // Clear CSS animation
+    element.style.animation = '';
+    
+    // Clear animation-specific properties
+    switch (animation.type) {
+      case 'rotation':
+        // Don't reset transform (keep current position)
+        // Just stop the animation
+        break;
+        
+      case 'opacity':
+        element.style.opacity = '1';
+        break;
+        
+      case 'fill':
+        // Don't reset fill, keep current state
+        break;
+        
+      case 'flow':
+        if (element.classList) {
+          element.classList.remove('flow-active');
+        }
+        break;
+        
+      case 'scale':
+        element.style.transform = '';
+        break;
+        
+      case 'stroke-dash':
+        if (element instanceof SVGElement) {
+          element.style.strokeDasharray = '';
+        }
+        break;
+    }
+  }
+  
+  /**
+   * Get active animation count
+   */
+  get activeCount(): number {
+    return this.activeAnimations.size;
+  }
+  
+  /**
+   * Get all active animations
+   */
+  getActiveAnimations(): AnimationState[] {
+    return Array.from(this.activeAnimations.values());
+  }
+  
+  /**
+   * Check if specific animation is active
+   */
+  isAnimationActive(componentId: string, animationId: string): boolean {
+    const stateKey = `${componentId}-${animationId}`;
+    return this.activeAnimations.has(stateKey);
+  }
+  
+  /**
+   * Clear all animations
+   */
+  clearAll(): void {
+    this.activeAnimations.clear();
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+  }
+  
+  /**
+   * Clear animations for specific component
+   */
+  clearComponent(componentId: string): void {
+    const keysToDelete: string[] = [];
+    
+    this.activeAnimations.forEach((state, key) => {
+      if (state.componentId === componentId) {
+        keysToDelete.push(key);
+      }
+    });
+    
+    keysToDelete.forEach(key => this.activeAnimations.delete(key));
+  }
+}
+
+// Singleton instance
+export const animationController = new AnimationController();
