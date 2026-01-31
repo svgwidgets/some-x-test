@@ -1,92 +1,63 @@
-/**
- * Sensor Visual Definitions with Metadata
- */
+<template>
+  <g>
+    <!-- Valve body paths (no v-html) -->
+    <path
+      v-for="(path, idx) in paths"
+      :key="idx"
+      :d="path"
+      :fill="valveColor"
+      stroke="#333"
+      stroke-width="2"
+      class="valve-body"
+    />
+    
+    <!-- Ports -->
+    <g v-if="showPorts">
+      <circle 
+        v-for="port in visual.ports"
+        :key="port.id"
+        :cx="port.position.x" 
+        :cy="port.position.y" 
+        r="4" 
+        :fill="port.type === 'inlet' ? '#2196F3' : '#FF9800'" 
+        stroke="#333" 
+        stroke-width="1.5"
+      />
+    </g>
+    
+    <!-- Label -->
+    <text 
+      v-if="showLabel"
+      :x="centerX" 
+      y="-8" 
+      text-anchor="middle" 
+      font-size="10" 
+      font-weight="bold" 
+      fill="#333"
+    >
+      {{ io.id }}
+    </text>
+  </g>
+</template>
 
-import type { VisualDefinition, RectElement } from '../VisualDefinition';
+<script setup lang="ts">
+import { computed } from 'vue';
+import type { DigitalIO } from '../../io';
+import { svgLibrary, getIOColor } from '../../visuals';
 
-/**
- * Pressure Sensor (PT)
- */
-export const PRESSURE_SENSOR_VISUAL: VisualDefinition = {
-  id: 'pressure-sensor',
-  name: 'Pressure Sensor',
-  category: 'Sensors',
-  icon: 'PT',
-  description: 'Pressure transmitter (PT)',
-  svg: `
-    <rect x="0" y="0" width="80" height="60" rx="4" class="sensor-box" />
-    <text x="40" y="20" class="sensor-tag">PT</text>
-    <text x="40" y="40" class="sensor-value">0.0</text>
-    <text x="40" y="54" class="sensor-unit">bar</text>
-  `,
-  viewBox: { width: 80, height: 60 },
-  ports: [],
-  colorTargets: [
-    { selector: '.sensor-value', property: 'fill', defaultColor: '#1976D2' },
-  ],
-  
-  metadata: {
-    elements: {
-      box: {
-        type: 'rect',
-        x: 0,
-        y: 0,
-        width: 80,
-        height: 60,
-        class: 'sensor-box',
-      } as RectElement,
-    },
-    textPositions: {
-      tag: { x: 40, y: 20 },
-      value: { x: 40, y: 40 },
-      unit: { x: 40, y: 54 },
-    },
-    defaultTag: 'PT',
-  },
-};
+interface Props {
+  io: DigitalIO;
+  showPorts?: boolean;
+  showLabel?: boolean;
+}
 
-/**
- * Temperature Sensor (TT)
- */
-export const TEMPERATURE_SENSOR_VISUAL: VisualDefinition = {
-  id: 'temperature-sensor',
-  name: 'Temperature Sensor',
-  category: 'Sensors',
-  icon: 'TT',
-  description: 'Temperature transmitter (TT)',
-  svg: `
-    <rect x="0" y="0" width="80" height="60" rx="4" class="sensor-box" />
-    <text x="40" y="20" class="sensor-tag">TT</text>
-    <text x="40" y="40" class="sensor-value">0.0</text>
-    <text x="40" y="54" class="sensor-unit">°C</text>
-  `,
-  viewBox: { width: 80, height: 60 },
-  ports: [],
-  colorTargets: [
-    { selector: '.sensor-value', property: 'fill', defaultColor: '#1976D2' },
-  ],
-  
-  metadata: {
-    elements: {
-      box: {
-        type: 'rect',
-        x: 0,
-        y: 0,
-        width: 80,
-        height: 60,
-        class: 'sensor-box',
-      } as RectElement,
-    },
-    textPositions: {
-      tag: { x: 40, y: 20 },
-      value: { x: 40, y: 40 },
-      unit: { x: 40, y: 54 },
-    },
-    defaultTag: 'TT',
-  },
-};
+const props = withDefaults(defineProps<Props>(), {
+  showPorts: true,
+  showLabel: true,
+});
 
-export const SENSOR_VISUALS = [
-  PRESSURE_SENSOR_VISUAL,
-  TEMPERATURE_SENSOR_VISUAL,
-];
+const visual = computed(() => svgLibrary.get('gate-valve')!);
+const paths = computed(() => visual.value.metadata?.paths || []);
+const centerX = computed(() => visual.value.viewBox.width / 2);
+const valveColor = computed(() => getIOColor(props.io));
+</script>
