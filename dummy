@@ -1,57 +1,92 @@
 /**
- * Tank Visual Definitions with Metadata
+ * Sensor Visual Definitions with Metadata
  */
 
-import type { VisualDefinition, PathElement, RectElement } from '../VisualDefinition';
+import type { VisualDefinition, RectElement } from '../VisualDefinition';
 
 /**
- * Vertical Tank - Liquid Level Display
+ * Pressure Sensor (PT)
  */
-export const VERTICAL_TANK_VISUAL: VisualDefinition = {
-  id: 'vertical-tank',
-  name: 'Vertical Tank',
-  category: 'Tanks',
-  icon: '▭',
-  description: 'Vertical cylindrical storage tank with liquid level',
+export const PRESSURE_SENSOR_VISUAL: VisualDefinition = {
+  id: 'pressure-sensor',
+  name: 'Pressure Sensor',
+  category: 'Sensors',
+  icon: 'PT',
+  description: 'Pressure transmitter (PT)',
   svg: `
-    <defs>
-      <clipPath id="tank-clip-path">
-        <path d="M 0 15 C 0 6.72 11.19 0 25 0 C 38.81 0 50 6.72 50 15 L 50 105 C 50 113.28 38.81 120 25 120 C 11.19 120 0 113.28 0 105 Z" />
-      </clipPath>
-    </defs>
-    <path d="M 0 15 C 0 6.72 11.19 0 25 0 C 38.81 0 50 6.72 50 15 L 50 105 C 50 113.28 38.81 120 25 120 C 11.19 120 0 113.28 0 105 Z" class="tank-outline" />
-    <rect x="3" y="105" width="44" height="0" class="tank-liquid" />
+    <rect x="0" y="0" width="80" height="60" rx="4" class="sensor-box" />
+    <text x="40" y="20" class="sensor-tag">PT</text>
+    <text x="40" y="40" class="sensor-value">0.0</text>
+    <text x="40" y="54" class="sensor-unit">bar</text>
   `,
-  viewBox: { width: 50, height: 120 },
-  ports: [
-    { id: 'inlet', type: 'inlet', position: { x: 25, y: 0 } },
-    { id: 'outlet', type: 'outlet', position: { x: 25, y: 120 } },
-  ],
+  viewBox: { width: 80, height: 60 },
+  ports: [],
   colorTargets: [
-    { selector: '.tank-liquid', property: 'fill', defaultColor: '#2196F3' },
+    { selector: '.sensor-value', property: 'fill', defaultColor: '#1976D2' },
   ],
-  animationTargets: ['.tank-liquid'],
   
   metadata: {
     elements: {
-      outline: {
-        type: 'path',
-        d: 'M 0 15 C 0 6.72 11.19 0 25 0 C 38.81 0 50 6.72 50 15 L 50 105 C 50 113.28 38.81 120 25 120 C 11.19 120 0 113.28 0 105 Z',
-        class: 'tank-outline',
-      } as PathElement,
-      liquid: {
+      box: {
         type: 'rect',
-        x: 3,
-        y: 105,
-        width: 44,
-        height: 0,
-        class: 'tank-liquid',
+        x: 0,
+        y: 0,
+        width: 80,
+        height: 60,
+        class: 'sensor-box',
       } as RectElement,
     },
-    clipPathId: 'tank-clip-path',
-    liquidRange: { top: 15, bottom: 105 },
-    valueDisplay: { x: 25, y: 65 },
+    textPositions: {
+      tag: { x: 40, y: 20 },
+      value: { x: 40, y: 40 },
+      unit: { x: 40, y: 54 },
+    },
+    defaultTag: 'PT',
   },
 };
 
-export const TANK_VISUALS = [VERTICAL_TANK_VISUAL];
+/**
+ * Temperature Sensor (TT)
+ */
+export const TEMPERATURE_SENSOR_VISUAL: VisualDefinition = {
+  id: 'temperature-sensor',
+  name: 'Temperature Sensor',
+  category: 'Sensors',
+  icon: 'TT',
+  description: 'Temperature transmitter (TT)',
+  svg: `
+    <rect x="0" y="0" width="80" height="60" rx="4" class="sensor-box" />
+    <text x="40" y="20" class="sensor-tag">TT</text>
+    <text x="40" y="40" class="sensor-value">0.0</text>
+    <text x="40" y="54" class="sensor-unit">°C</text>
+  `,
+  viewBox: { width: 80, height: 60 },
+  ports: [],
+  colorTargets: [
+    { selector: '.sensor-value', property: 'fill', defaultColor: '#1976D2' },
+  ],
+  
+  metadata: {
+    elements: {
+      box: {
+        type: 'rect',
+        x: 0,
+        y: 0,
+        width: 80,
+        height: 60,
+        class: 'sensor-box',
+      } as RectElement,
+    },
+    textPositions: {
+      tag: { x: 40, y: 20 },
+      value: { x: 40, y: 40 },
+      unit: { x: 40, y: 54 },
+    },
+    defaultTag: 'TT',
+  },
+};
+
+export const SENSOR_VISUALS = [
+  PRESSURE_SENSOR_VISUAL,
+  TEMPERATURE_SENSOR_VISUAL,
+];
