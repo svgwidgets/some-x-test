@@ -1,33 +1,48 @@
 /**
- * Pump Visual Definitions
+ * Tank Visual Definitions
  */
 
 import type { VisualDefinition } from '../VisualDefinition';
 
-export const PUMP_CENTRIFUGAL: VisualDefinition = {
-  id: 'pump-centrifugal',
-  name: 'Centrifugal Pump',
-  category: 'Pumps',
-  icon: '⊚',
-  description: 'Centrifugal pump with rotating impeller',
+export const TANK_VERTICAL: VisualDefinition = {
+  id: 'tank-vertical',
+  name: 'Vertical Tank',
+  category: 'Tanks',
+  icon: '▭',
+  description: 'Vertical cylindrical storage tank',
   svg: `
-    <circle cx="20" cy="20" r="18" class="pump-casing" fill="none" stroke="#333" stroke-width="2" />
-    <g class="pump-impeller" transform-origin="20 20">
-      <path d="M 20,8 L 24,16 L 20,20 L 16,16 Z" fill="#4CAF50" />
-      <path d="M 32,20 L 24,24 L 20,20 L 24,16 Z" fill="#4CAF50" />
-      <path d="M 20,32 L 16,24 L 20,20 L 24,24 Z" fill="#4CAF50" />
-      <path d="M 8,20 L 16,16 L 20,20 L 16,24 Z" fill="#4CAF50" />
-    </g>
+    <defs>
+      <clipPath id="tank-clip-path">
+        <path d="M 0 15 C 0 6.72 11.19 0 25 0 C 38.81 0 50 6.72 50 15 L 50 105 C 50 113.28 38.81 120 25 120 C 11.19 120 0 113.28 0 105 Z" />
+      </clipPath>
+    </defs>
+    <path 
+      d="M 0 15 C 0 6.72 11.19 0 25 0 C 38.81 0 50 6.72 50 15 L 50 105 C 50 113.28 38.81 120 25 120 C 11.19 120 0 113.28 0 105 Z"
+      class="tank-outline"
+      fill="none"
+      stroke="#333"
+      stroke-width="2"
+    />
+    <rect 
+      x="3" 
+      y="105" 
+      width="44" 
+      height="0" 
+      class="tank-liquid"
+      fill="#2196F3"
+      opacity="0.8"
+      clip-path="url(#tank-clip-path)"
+    />
   `,
-  viewBox: { width: 40, height: 40 },
+  viewBox: { width: 50, height: 120 },
   ports: [
-    { id: 'inlet', type: 'inlet', position: { x: 0, y: 20 } },
-    { id: 'outlet', type: 'outlet', position: { x: 40, y: 20 } },
+    { id: 'inlet', type: 'inlet', position: { x: 25, y: 0 } },
+    { id: 'outlet', type: 'outlet', position: { x: 25, y: 120 } },
   ],
   colorTargets: [
-    { selector: '.pump-impeller path', property: 'fill', defaultColor: '#4CAF50' },
+    { selector: '.tank-liquid', property: 'fill', defaultColor: '#2196F3' },
   ],
-  animationTargets: ['.pump-impeller'],
+  animationTargets: ['.tank-liquid'],
 };
 
-export const PUMP_VISUALS = [PUMP_CENTRIFUGAL];
+export const TANK_VISUALS = [TANK_VERTICAL];
