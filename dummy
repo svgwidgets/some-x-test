@@ -1,61 +1,112 @@
 /**
- * Animation System Library
- * 
- * Generic animation abstraction for P&ID components.
- * 
- * @example
- * ```typescript
- * import { animationLibrary, animationController } from '@/lib/animations';
- * 
- * const pumpAnim = animationLibrary.get('pump-rotation');
- * animationController.applyAnimation(element, pumpAnim, pumpIO);
- * ```
+ * CSS Animations for P&ID Components
  */
 
-// Core exports
-export type {
-  AnimationDefinition,
-  AnimationType,
-  AnimationEasing,
-  AnimationCondition,
-  AnimationValueCalculator,
-  AnimationState,
-  BaseAnimationConfig,
-  BaseAnimationDirection,
-  FillDirection,
-  RotationAnimationConfig,
-  FillAnimationConfig,
-  FlowAnimationConfig,
-  ScaleAnimationConfig,
-} from './AnimationDefinition';
+/* Rotation animation */
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
 
-export {
-  ANIMATION_CONDITIONS,
-  VALUE_CALCULATORS,
-} from './AnimationDefinition';
+/* Flow animation (for dots) */
+@keyframes flow {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
+  }
+}
 
-// Library exports
-export {
-  AnimationLibrary,
-  animationLibrary,
-  PREDEFINED_ANIMATIONS,
-  PUMP_ROTATION,
-  MOTOR_ROTATION,
-  TANK_FILL,
-  PIPE_FLOW,
-  VALVE_TRANSITION,
-  ALARM_BLINK,
-  GAUGE_NEEDLE,
-} from './AnimationLibrary';
+/* Blink animation */
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
 
-// Controller exports
-export {
-  AnimationController,
-  animationController,
-} from './AnimationController';
+/* Pulse animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
 
-// Component exports
-export { default as AnimatedComponent } from './AnimatedComponent.vue';
+/* Dash animation (for pipes) */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
 
-// CSS import
-import './animations.css';
+/* Fade in */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Fade out */
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Shake animation (for alarms) */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-2px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(2px);
+  }
+}
+
+/* Bounce animation */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Utility classes */
+.animated {
+  animation-fill-mode: both;
+}
+
+.animated-infinite {
+  animation-iteration-count: infinite;
+}
+
+.animated-paused {
+  animation-play-state: paused;
+}
+
+.animated-running {
+  animation-play-state: running;
+}
