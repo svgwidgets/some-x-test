@@ -5,28 +5,20 @@
       :visual="visual"
       :position="position"
       :color="{
-        '.tank-liquid': getIOColor(io)
+        '.sensor-value': getIOColor(io)
       }"
-      :label="label"
-      :showPorts="true"
+      :label="io.id"
+      :showPorts="false"
     />
     
-    <!-- Overlay dynamic text -->
-    <text 
-      x="25" 
-      y="65" 
-      text-anchor="middle" 
-      font-size="16" 
-      font-weight="bold" 
-      :fill="textColor"
-    >
-      {{ Math.round(io.value) }}%
+    <!-- Overlay dynamic value (SVG text elements can't be in visual definition) -->
+    <text x="40" y="40" text-anchor="middle" font-size="16" font-weight="bold" :fill="getIOColor(io)">
+      {{ io.value.toFixed(io.precision || 1) }}
     </text>
   </g>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
 import type { AnalogIO } from '@/lib/io';
 import type { VisualDefinition, Position } from '@/lib/visuals';
 import { SVGRenderer, getIOColor } from '@/lib/visuals';
@@ -35,10 +27,7 @@ interface Props {
   io: AnalogIO;
   visual: VisualDefinition;
   position: Position;
-  label?: string;
 }
 
-const props = defineProps<Props>();
-
-const textColor = computed(() => props.io.value > 50 ? '#FFFFFF' : '#333');
+defineProps<Props>();
 </script>
