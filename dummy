@@ -1,51 +1,36 @@
 <template>
   <g>
-    <!-- Render base SVG from definition -->
-    <g v-html="baseSvg"></g>
-    
-    <!-- Update liquid dynamically (AnimationController will handle this) -->
+    <!-- Base SVG -->
     <rect
-      class="tank-liquid"
-      x="3"
-      :y="liquidY"
-      width="44"
-      :height="liquidHeight"
-      :fill="liquidColor"
-      opacity="0.8"
-      clip-path="url(#tank-clip-path)"
+      x="0"
+      y="0"
+      width="80"
+      height="60"
+      rx="4"
+      fill="white"
+      stroke="#333"
+      stroke-width="2"
     />
     
-    <!-- Value overlay -->
-    <text 
-      v-if="showValue"
-      x="25" 
-      y="65" 
-      text-anchor="middle" 
-      font-size="16" 
-      font-weight="bold" 
-      :fill="textColor"
-    >
-      {{ Math.round(io.value) }}%
+    <!-- Tag -->
+    <text x="40" y="20" text-anchor="middle" font-size="12" font-weight="bold" fill="#666">
+      {{ tag }}
     </text>
     
-    <!-- Ports -->
-    <g v-if="showPorts">
-      <circle 
-        v-for="port in visual.ports"
-        :key="port.id"
-        :cx="port.position.x" 
-        :cy="port.position.y" 
-        r="4" 
-        :fill="port.type === 'inlet' ? '#2196F3' : '#FF9800'" 
-        stroke="#333" 
-        stroke-width="1.5"
-      />
-    </g>
+    <!-- Dynamic Value -->
+    <text x="40" y="40" text-anchor="middle" font-size="16" font-weight="bold" :fill="valueColor">
+      {{ formattedValue }}
+    </text>
+    
+    <!-- Unit -->
+    <text x="40" y="54" text-anchor="middle" font-size="10" fill="#999">
+      {{ io.unit }}
+    </text>
     
     <!-- Label -->
     <text 
       v-if="showLabel"
-      x="25" 
+      x="40" 
       y="-8" 
       text-anchor="middle" 
       font-size="10" 
@@ -60,42 +45,21 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { AnalogIO } from '../io';
-import { svgLibrary, getIOColor } from '../visuals';
+import { getIOColor } from '../visuals';
 
 interface Props {
   io: AnalogIO;
   visualId?: string;
-  showPorts?: boolean;
   showLabel?: boolean;
-  showValue?: boolean;
+  tag?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  visualId: 'tank-vertical',
-  showPorts: true,
+  visualId: 'sensor-pressure',
   showLabel: true,
-  showValue: true,
 });
 
-const visual = computed(() => svgLibrary.get(props.visualId)!);
-
-const tankTop = 15;
-const tankBottom = 105;
-const fillableHeight = tankBottom - tankTop;
-
-const liquidHeight = computed(() => (props.io.value / 100) * fillableHeight);
-const liquidY = computed(() => tankBottom - liquidHeight.value);
-const liquidColor = computed(() => getIOColor(props.io));
-const textColor = computed(() => props.io.value > 50 ? '#FFFFFF' : '#333');
-
-// Get base SVG without the liquid rect (we control it separately)
-const baseSvg = computed(() => {
-  return visual.value.svg;
-});
+const valueColor = computed(() => getIOColor(props.io));
+const formattedValue = computed(() => props.io.value.toFixed(props.io.precision || 1));
+const tag = computed(() => props.tag || props.io.id.split('-')[0]);
 </script>
-
-<style scoped>
-.tank-liquid {
-  transition: y 0.5s ease-out, height 0.5s ease-out;
-}
-</style>
