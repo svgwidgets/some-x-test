@@ -1,175 +1,178 @@
-# Animation System Usage Examples
-
-## Basic Usage
-
-### Apply Animation to Component
-```typescript
-import { animationLibrary, animationController } from '@/lib/animations';
-import { createDigitalIO, DIGITAL_IO_PRESETS } from '@/lib/io';
-
-// Create I/O
-const pumpIO = createDigitalIO({
-  id: 'P-001',
-  channel: 'plc1.pumps.P001.state',
-  ...DIGITAL_IO_PRESETS.pump,
-});
-
-// Get animation
-const pumpAnimation = animationLibrary.get('pump-rotation');
-
-// Get target element
-const impellerElement = document.querySelector('.pump-impeller');
-
-// Apply animation
-if (impellerElement && pumpAnimation) {
-  animationController.applyAnimation(
-    impellerElement as SVGElement,
-    pumpAnimation,
-    pumpIO
-  );
-}
-```
-
-### Use Animated Component Wrapper
-```vue
 <template>
-  <svg width="800" height="600">
-    <AnimatedComponent :io="pumpIO" :animations="[pumpAnimation]">
-      <SVGRenderer
-        :visual="pumpVisual"
-        :position="{ x: 100, y: 200 }"
-        :color="pumpColor"
+  <g
+    :transform="`translate(${position.x}, ${position.y}) rotate(${rotation}, ${centerX}, ${centerY})`"
+    :class="['svg-component', `svg-${visual.id}`, { 'svg-selected': selected }]"
+  >
+    <!-- Render SVG content -->
+    <g v-html="renderedSVG" :class="colorClasses"></g>
+    
+    <!-- Ports (optional) -->
+    <g v-if="showPorts" class="ports">
+      <circle
+        v-for="port in visual.ports"
+        :key="port.id"
+        :cx="port.position.x"
+        :cy="port.position.y"
+        :r="portRadius"
+        :class="['port', `port-${port.type}`]"
+        :fill="portColor(port.type)"
+        stroke="#333"
+        stroke-width="1.5"
       />
-    </AnimatedComponent>
-  </svg>
+    </g>
+    
+    <!-- Label -->
+    <text
+      v-if="label"
+      :x="centerX"
+      :y="-8"
+      text-anchor="middle"
+      font-size="10"
+      font-weight="bold"
+      fill="#333"
+      class="component-label"
+    >
+      {{ label }}
+    </text>
+  </g>
 </template>
 
-<script setup>
-import { AnimatedComponent, animationLibrary } from '@/lib/animations';
-import { createDigitalIO, DIGITAL_IO_PRESETS } from '@/lib/io';
-import { SVGRenderer, svgLibrary, getIOColor } from '@/lib/visuals';
+<script setup lang="ts">
+import { computed } from 'vue';
+import type { VisualDefinition, Position } from './VisualDefinition';
 
-const pumpIO = createDigitalIO({
-  id: 'P-001',
-  channel: 'plc1.pumps.P001.state',
-  ...DIGITAL_IO_PRESETS.pump,
-});
-
-const pumpVisual = svgLibrary.get('pump-centrifugal');
-const pumpAnimation = animationLibrary.get('pump-rotation');
-const pumpColor = getIOColor(pumpIO);
-</script>
-```
-
-## Custom Animations
-
-### Create Custom Animation
-```typescript
-import { animationLibrary } from '@/lib/animations';
-import type { AnimationDefinition } from '@/lib/animations';
-import { isAnalogIO } from '@/lib/io';
-
-const customAnimation: AnimationDefinition = {
-  id: 'custom-rotation',
-  type: 'rotation',
-  target: '.custom-element',
-  condition: (io) => isAnalogIO(io) && io.value > 50,
-  config: {
-    duration: 1000,
-    easing: 'ease-in-out',
-    repeat: true,
-  },
-  valueCalculator: (io) => {
-    // Map 0-100 to 0-360 degrees
-    return isAnalogIO(io) ? (io.value / 100) * 360 : 0;
-  },
-  description: 'Custom rotation based on value',
-};
-
-// Register it
-animationLibrary.register(customAnimation);
-```
-
-### Tank Fill Animation
-```typescript
-import { TANK_FILL, animationController } from '@/lib/animations';
-import { createAnalogIO, ANALOG_IO_PRESETS } from '@/lib/io';
-
-const tankLevel = createAnalogIO({
-  id: 'LT-001',
-  channel: 'plc1.tanks.TK001.level',
-  ...ANALOG_IO_PRESETS.level,
-});
-
-const liquidElement = document.querySelector('.tank-liquid');
-
-if (liquidElement) {
-  animationController.applyAnimation(
-    liquidElement as SVGElement,
-    TANK_FILL,
-    tankLevel
-  );
+interface Props {
+  visual: VisualDefinition;
+  position: Position;
+  rotation?: number;
+  color?: string | Record<string, string>;
+  label?: string;
+  showPorts?: boolean;
+  selected?: boolean;
+  portRadius?: number;
 }
 
-// Update level - animation updates automatically
-tankLevel.updateValue(75);
-```
+const props = withDefaults(defineProps<Props>(), {
+  rotation: 0,
+  showPorts: false,
+  selected: false,
+  portRadius: 4,
+});
 
-## Animation Conditions
+// Center point for rotation
+const centerX = computed(() => props.visual.viewBox.width / 2);
+const centerY = computed(() => props.visual.viewBox.height / 2);
 
-### Use Predefined Conditions
-```typescript
-import { ANIMATION_CONDITIONS } from '@/lib/animations';
-
-const myAnimation = {
-  id: 'my-anim',
-  type: 'rotation',
-  target: '.element',
-  condition: ANIMATION_CONDITIONS.digitalTrue, // Animate when true
-  config: { duration: 2000 },
-};
-
-// Or with threshold
-const thresholdAnimation = {
-  id: 'threshold-anim',
-  type: 'opacity',
-  target: '.indicator',
-  condition: ANIMATION_CONDITIONS.analogAboveThreshold(75), // Animate when > 75
-  config: { duration: 500 },
-};
-```
-
-### Custom Conditions
-```typescript
-const customCondition = (io: IOComponent): boolean => {
-  if (isAnalogIO(io)) {
-    return io.value > 50 && io.getState() === 'normal';
+// Rendered SVG (wrap in <g> if it's just paths)
+const renderedSVG = computed(() => {
+  const svg = props.visual.svg;
+  
+  // If SVG contains full elements (like <circle>, <path>), use as is
+  if (svg.includes('<')) {
+    return svg;
   }
-  return false;
-};
+  
+  // If it's just path data, wrap in path element
+  return `<path d="${svg}" class="svg-shape" />`;
+});
 
-const animation = {
-  id: 'custom',
-  type: 'scale',
-  target: '.element',
-  condition: customCondition,
-  config: { duration: 300 },
-};
-```
+// Color classes for CSS targeting
+const colorClasses = computed(() => {
+  if (typeof props.color === 'string') {
+    return 'single-color';
+  }
+  return 'multi-color';
+});
 
-## Value Calculators
+// Port color based on type
+function portColor(type: string): string {
+  const colors: Record<string, string> = {
+    inlet: '#2196F3',
+    outlet: '#FF9800',
+    bidirectional: '#4CAF50',
+  };
+  return colors[type] || '#FFC107';
+}
+</script>
 
-### Map Analog Value to Animation Value
-```typescript
-import { VALUE_CALCULATORS } from '@/lib/animations';
+<style scoped>
+.svg-component {
+  cursor: default;
+  transition: filter var(--transition-fast);
+}
 
-const gaugeAnimation = {
-  id: 'gauge-needle',
-  type: 'rotation',
-  target: '.needle',
-  condition: () => true,
-  config: { duration: 300 },
-  // Map 0-100% to -90° to +90°
-  valueCalculator: VALUE_CALCULATORS.mapRange(0, 100, -90, 90),
-};
-```
+.svg-component:hover {
+  filter: brightness(1.05);
+}
+
+.svg-selected {
+  filter: drop-shadow(0 0 8px rgba(33, 150, 243, 0.6));
+}
+
+/* Single color mode */
+.single-color .svg-shape,
+.single-color path {
+  fill: v-bind('typeof color === "string" ? color : "currentColor"');
+  stroke: #333;
+  stroke-width: 2;
+}
+
+/* Multi-color mode - handled via deep CSS */
+.multi-color >>> .valve-body {
+  fill: v-bind('typeof color === "object" ? color[".valve-body"] : "currentColor"');
+  stroke: #333;
+  stroke-width: 2;
+}
+
+.multi-color >>> .valve-actuator {
+  fill: v-bind('typeof color === "object" ? color[".valve-actuator"] : "currentColor"');
+  stroke: #333;
+  stroke-width: 2;
+}
+
+.multi-color >>> .pump-casing {
+  stroke: #333;
+  stroke-width: 2;
+  fill: none;
+}
+
+.multi-color >>> .pump-impeller {
+  fill: v-bind('typeof color === "object" ? color[".pump-impeller"] : "currentColor"');
+}
+
+.multi-color >>> .tank-outline {
+  stroke: #333;
+  stroke-width: 2;
+  fill: none;
+}
+
+.multi-color >>> .tank-liquid {
+  fill: v-bind('typeof color === "object" ? color[".tank-liquid"] : "#2196F3"');
+  opacity: 0.8;
+}
+
+.multi-color >>> .sensor-box {
+  fill: white;
+  stroke: #333;
+  stroke-width: 2;
+}
+
+.multi-color >>> .sensor-value {
+  fill: v-bind('typeof color === "object" ? color[".sensor-value"] : "#1976D2"');
+}
+
+.port {
+  cursor: crosshair;
+  transition: all var(--transition-fast);
+}
+
+.port:hover {
+  r: 6;
+  filter: brightness(1.3) drop-shadow(0 0 4px currentColor);
+}
+
+.component-label {
+  pointer-events: none;
+  user-select: none;
+}
+</style>
