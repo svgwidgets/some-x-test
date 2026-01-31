@@ -1,228 +1,73 @@
-/**
- * Animation Library
- * 
- * Predefined animation definitions for common P&ID components.
- */
+<template>
+  <g
+    :ref="(el) => setComponentRef(el as SVGGElement)"
+    class="animated-component"
+  >
+    <slot></slot>
+  </g>
+</template>
 
+<script setup lang="ts">
+import { ref, watch, onMounted, onUnmounted } from 'vue';
+import type { IOComponent } from '../io/IOComponent';
 import type { AnimationDefinition } from './AnimationDefinition';
-import { ANIMATION_CONDITIONS, VALUE_CALCULATORS } from './AnimationDefinition';
-import { isDigitalIO, isAnalogIO } from '../io';
+import { animationController } from './AnimationController';
 
-/**
- * Pump rotation animation
- */
-export const PUMP_ROTATION: AnimationDefinition = {
-  id: 'pump-rotation',
-  type: 'rotation',
-  target: '.pump-impeller',
-  condition: ANIMATION_CONDITIONS.digitalTrue,
-  config: {
-    duration: 2000,
-    easing: 'linear',
-    repeat: true,
-    direction: 'normal',
-  },
-  description: 'Rotates pump impeller when running',
-};
+interface Props {
+  io: IOComponent;
+  animations: AnimationDefinition[];
+}
 
-/**
- * Motor rotation animation
- */
-export const MOTOR_ROTATION: AnimationDefinition = {
-  id: 'motor-rotation',
-  type: 'rotation',
-  target: '.motor-rotor',
-  condition: ANIMATION_CONDITIONS.digitalTrue,
-  config: {
-    duration: 1500,
-    easing: 'linear',
-    repeat: true,
-  },
-  description: 'Rotates motor when on',
-};
+const props = defineProps<Props>();
 
-/**
- * Tank fill animation
- */
-export const TANK_FILL: AnimationDefinition = {
-  id: 'tank-fill',
-  type: 'fill',
-  target: '.tank-liquid',
-  condition: ANIMATION_CONDITIONS.always,
-  config: {
-    duration: 500,
-    easing: 'ease-out',
-  },
-  valueCalculator: VALUE_CALCULATORS.analogPercentage,
-  description: 'Animates tank liquid level based on analog value',
-};
+const componentRef = ref<SVGGElement | null>(null);
 
-/**
- * Pipe flow animation
- */
-export const PIPE_FLOW: AnimationDefinition = {
-  id: 'pipe-flow',
-  type: 'flow',
-  target: '.flow-dot',
-  condition: ANIMATION_CONDITIONS.analogPositive,
-  config: {
-    duration: 2000,
-    easing: 'linear',
-    repeat: true,
-  },
-  description: 'Animates flow dots when flow is positive',
-};
-
-/**
- * Valve opening animation
- */
-export const VALVE_TRANSITION: AnimationDefinition = {
-  id: 'valve-transition',
-  type: 'opacity',
-  target: '.valve-body',
-  condition: (io) => isDigitalIO(io) && io.transitioning === true,
-  config: {
-    duration: 500,
-    easing: 'ease-in-out',
-    repeat: 3,
-    direction: 'alternate',
-  },
-  description: 'Pulses valve during transition',
-};
-
-/**
- * Alarm blink animation
- */
-export const ALARM_BLINK: AnimationDefinition = {
-  id: 'alarm-blink',
-  type: 'opacity',
-  target: '.alarm-indicator',
-  condition: (io) => {
-    if (isAnalogIO(io)) {
-      return io.isInAlarm();
-    }
-    return false;
-  },
-  config: {
-    duration: 1000,
-    easing: 'linear',
-    repeat: true,
-    direction: 'alternate',
-  },
-  description: 'Blinks alarm indicator',
-};
-
-/**
- * Gauge needle rotation
- */
-export const GAUGE_NEEDLE: AnimationDefinition = {
-  id: 'gauge-needle',
-  type: 'rotation',
-  target: '.gauge-needle',
-  condition: ANIMATION_CONDITIONS.always,
-  config: {
-    duration: 300,
-    easing: 'ease-out',
-  },
-  valueCalculator: (io) => {
-    // Map 0-100% to -90 to +90 degrees
-    return VALUE_CALCULATORS.mapRange(0, 100, -90, 90)(io);
-  },
-  description: 'Rotates gauge needle based on value',
-};
-
-/**
- * All predefined animations
- */
-export const PREDEFINED_ANIMATIONS: AnimationDefinition[] = [
-  PUMP_ROTATION,
-  MOTOR_ROTATION,
-  TANK_FILL,
-  PIPE_FLOW,
-  VALVE_TRANSITION,
-  ALARM_BLINK,
-  GAUGE_NEEDLE,
-];
-
-/**
- * Animation library class
- */
-export class AnimationLibrary {
-  private animations: Map<string, AnimationDefinition>;
-  
-  constructor() {
-    this.animations = new Map();
-    this.loadPredefinedAnimations();
-  }
-  
-  /**
-   * Load predefined animations
-   */
-  private loadPredefinedAnimations(): void {
-    PREDEFINED_ANIMATIONS.forEach(animation => {
-      this.register(animation);
-    });
-  }
-  
-  /**
-   * Register an animation
-   */
-  register(animation: AnimationDefinition): void {
-    if (this.animations.has(animation.id)) {
-      console.warn(`[AnimationLibrary] Overwriting animation: ${animation.id}`);
-    }
-    this.animations.set(animation.id, animation);
-  }
-  
-  /**
-   * Get animation by ID
-   */
-  get(id: string): AnimationDefinition | undefined {
-    return this.animations.get(id);
-  }
-  
-  /**
-   * Check if animation exists
-   */
-  has(id: string): boolean {
-    return this.animations.has(id);
-  }
-  
-  /**
-   * Get all animations
-   */
-  getAll(): AnimationDefinition[] {
-    return Array.from(this.animations.values());
-  }
-  
-  /**
-   * Get animations by type
-   */
-  getByType(type: string): AnimationDefinition[] {
-    return this.getAll().filter(anim => anim.type === type);
-  }
-  
-  /**
-   * Remove animation
-   */
-  unregister(id: string): boolean {
-    return this.animations.delete(id);
-  }
-  
-  /**
-   * Clear all animations
-   */
-  clear(): void {
-    this.animations.clear();
-  }
-  
-  /**
-   * Get count
-   */
-  get count(): number {
-    return this.animations.size;
+function setComponentRef(el: SVGGElement | null) {
+  componentRef.value = el;
+  if (el) {
+    applyAnimations();
   }
 }
 
-// Singleton instance
-export const animationLibrary = new AnimationLibrary();
+// Apply animations when I/O value changes
+watch(() => props.io.value, () => {
+  applyAnimations();
+}, { deep: true });
+
+// Apply animations when animations array changes
+watch(() => props.animations, () => {
+  applyAnimations();
+}, { deep: true });
+
+function applyAnimations() {
+  if (!componentRef.value) return;
+  
+  props.animations.forEach(animation => {
+    const targetElement = componentRef.value!.querySelector(animation.target);
+    
+    if (targetElement) {
+      animationController.applyAnimation(
+        targetElement as SVGElement,
+        animation,
+        props.io
+      );
+    } else {
+      console.warn(`[AnimatedComponent] Target element not found: ${animation.target}`);
+    }
+  });
+}
+
+onMounted(() => {
+  applyAnimations();
+});
+
+onUnmounted(() => {
+  // Cleanup if needed
+});
+</script>
+
+<style scoped>
+.animated-component {
+  /* Base styles */
+}
+</style>
