@@ -1,64 +1,57 @@
 <template>
   <g>
-    <!-- Tank outline -->
-    <path
-      :d="elements.outline.d"
-      fill="none"
+    <!-- Sensor box -->
+    <rect
+      :x="elements.box.x"
+      :y="elements.box.y"
+      :width="elements.box.width"
+      :height="elements.box.height"
+      rx="4"
+      fill="white"
       stroke="#333"
       stroke-width="2"
-      class="tank-outline"
+      class="sensor-box"
     />
     
-    <!-- Clip path definition -->
-    <defs>
-      <clipPath :id="`${clipPathId}-${io.id}`">
-        <path :d="elements.outline.d" />
-      </clipPath>
-    </defs>
-    
-    <!-- Liquid (animated by AnimationController) -->
-    <rect
-      class="tank-liquid"
-      :x="elements.liquid.x"
-      :y="liquidY"
-      :width="elements.liquid.width"
-      :height="liquidHeight"
-      :fill="liquidColor"
-      opacity="0.8"
-      :clip-path="`url(#${clipPathId}-${io.id})`"
-    />
-    
-    <!-- Value display -->
+    <!-- Tag -->
     <text 
-      v-if="showValue"
-      :x="valueDisplay.x" 
-      :y="valueDisplay.y" 
+      :x="textPositions.tag.x" 
+      :y="textPositions.tag.y" 
+      text-anchor="middle" 
+      font-size="12" 
+      font-weight="bold" 
+      fill="#666"
+    >
+      {{ tag }}
+    </text>
+    
+    <!-- Value -->
+    <text 
+      :x="textPositions.value.x" 
+      :y="textPositions.value.y" 
       text-anchor="middle" 
       font-size="16" 
       font-weight="bold" 
-      :fill="textColor"
+      :fill="valueColor"
     >
-      {{ Math.round(io.value) }}%
+      {{ formattedValue }}
     </text>
     
-    <!-- Ports -->
-    <g v-if="showPorts">
-      <circle 
-        v-for="port in visual.ports"
-        :key="port.id"
-        :cx="port.position.x" 
-        :cy="port.position.y" 
-        r="4" 
-        :fill="port.type === 'inlet' ? '#2196F3' : '#FF9800'" 
-        stroke="#333" 
-        stroke-width="1.5"
-      />
-    </g>
+    <!-- Unit -->
+    <text 
+      :x="textPositions.unit.x" 
+      :y="textPositions.unit.y" 
+      text-anchor="middle" 
+      font-size="10" 
+      fill="#999"
+    >
+      {{ io.unit }}
+    </text>
     
     <!-- Label -->
     <text 
       v-if="showLabel"
-      :x="centerX" 
+      x="40" 
       y="-8" 
       text-anchor="middle" 
       font-size="10" 
@@ -77,34 +70,20 @@ import { svgLibrary, getIOColor } from '../../visuals';
 
 interface Props {
   io: AnalogIO;
-  showPorts?: boolean;
   showLabel?: boolean;
-  showValue?: boolean;
+  tag?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  showPorts: true,
   showLabel: true,
-  showValue: true,
 });
 
-const visual = computed(() => svgLibrary.get('vertical-tank')!);
+const visual = computed(() => svgLibrary.get('pressure-sensor')!);
 const elements = computed(() => visual.value.metadata?.elements || {});
-const liquidRange = computed(() => visual.value.metadata?.liquidRange || { top: 15, bottom: 105 });
-const valueDisplay = computed(() => visual.value.metadata?.valueDisplay || { x: 25, y: 65 });
-const clipPathId = computed(() => visual.value.metadata?.clipPathId || 'tank-clip-path');
-const centerX = computed(() => visual.value.viewBox.width / 2);
+const textPositions = computed(() => visual.value.metadata?.textPositions || {});
+const defaultTag = computed(() => visual.value.metadata?.defaultTag || 'PT');
 
-const fillableHeight = computed(() => liquidRange.value.bottom - liquidRange.value.top);
-const liquidHeight = computed(() => (props.io.value / 100) * fillableHeight.value);
-const liquidY = computed(() => liquidRange.value.bottom - liquidHeight.value);
-
-const liquidColor = computed(() => getIOColor(props.io));
-const textColor = computed(() => props.io.value > 50 ? '#FFFFFF' : '#333');
+const tag = computed(() => props.tag || defaultTag.value);
+const valueColor = computed(() => getIOColor(props.io));
+const formattedValue = computed(() => props.io.value.toFixed(props.io.precision || 1));
 </script>
-
-<style scoped>
-.tank-liquid {
-  transition: y 0.5s ease-out, height 0.5s ease-out;
-}
-</style>
