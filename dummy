@@ -1,28 +1,45 @@
 <template>
   <g>
-    <!-- Casing -->
-    <circle
-      :cx="elements.casing.cx"
-      :cy="elements.casing.cy"
-      :r="elements.casing.r"
+    <!-- Tank outline -->
+    <path
+      :d="elements.outline.d"
       fill="none"
       stroke="#333"
       stroke-width="2"
-      class="pump-casing"
+      class="tank-outline"
     />
     
-    <!-- Impeller (animated by AnimationController) -->
-    <g 
-      class="pump-impeller" 
-      :transform-origin="impellerTransformOrigin"
+    <!-- Clip path definition -->
+    <defs>
+      <clipPath :id="`${clipPathId}-${io.id}`">
+        <path :d="elements.outline.d" />
+      </clipPath>
+    </defs>
+    
+    <!-- Liquid (animated by AnimationController) -->
+    <rect
+      class="tank-liquid"
+      :x="elements.liquid.x"
+      :y="liquidY"
+      :width="elements.liquid.width"
+      :height="liquidHeight"
+      :fill="liquidColor"
+      opacity="0.8"
+      :clip-path="`url(#${clipPathId}-${io.id})`"
+    />
+    
+    <!-- Value display -->
+    <text 
+      v-if="showValue"
+      :x="valueDisplay.x" 
+      :y="valueDisplay.y" 
+      text-anchor="middle" 
+      font-size="16" 
+      font-weight="bold" 
+      :fill="textColor"
     >
-      <path
-        v-for="(child, idx) in impellerChildren"
-        :key="idx"
-        :d="child.d"
-        :fill="pumpColor"
-      />
-    </g>
+      {{ Math.round(io.value) }}%
+    </text>
     
     <!-- Ports -->
     <g v-if="showPorts">
@@ -55,32 +72,39 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { DigitalIO } from '../../io';
+import type { AnalogIO } from '../../io';
 import { svgLibrary, getIOColor } from '../../visuals';
 
 interface Props {
-  io: DigitalIO;
+  io: AnalogIO;
   showPorts?: boolean;
   showLabel?: boolean;
+  showValue?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showPorts: true,
   showLabel: true,
+  showValue: true,
 });
 
-const visual = computed(() => svgLibrary.get('centrifugal-pump')!);
+const visual = computed(() => svgLibrary.get('vertical-tank')!);
 const elements = computed(() => visual.value.metadata?.elements || {});
+const liquidRange = computed(() => visual.value.metadata?.liquidRange || { top: 15, bottom: 105 });
+const valueDisplay = computed(() => visual.value.metadata?.valueDisplay || { x: 25, y: 65 });
+const clipPathId = computed(() => visual.value.metadata?.clipPathId || 'tank-clip-path');
 const centerX = computed(() => visual.value.viewBox.width / 2);
-const pumpColor = computed(() => getIOColor(props.io));
 
-const impellerTransformOrigin = computed(() => {
-  const impeller = elements.value.impeller as any;
-  return impeller?.transformOrigin || '20 20';
-});
+const fillableHeight = computed(() => liquidRange.value.bottom - liquidRange.value.top);
+const liquidHeight = computed(() => (props.io.value / 100) * fillableHeight.value);
+const liquidY = computed(() => liquidRange.value.bottom - liquidHeight.value);
 
-const impellerChildren = computed(() => {
-  const impeller = elements.value.impeller as any;
-  return impeller?.children || [];
-});
+const liquidColor = computed(() => getIOColor(props.io));
+const textColor = computed(() => props.io.value > 50 ? '#FFFFFF' : '#333');
 </script>
+
+<style scoped>
+.tank-liquid {
+  transition: y 0.5s ease-out, height 0.5s ease-out;
+}
+</style>
