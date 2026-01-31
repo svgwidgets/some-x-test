@@ -45,33 +45,16 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  visualId: 'valve-ax',
+  visualId: 'pump-centrifugal',
   showPorts: true,
   showLabel: true,
 });
 
-const visual = computed(() => {
-  const v = svgLibrary.get(props.visualId);
-  if (!v) {
-    console.warn(`[Valve] Visual '${props.visualId}' not found`);
-    return svgLibrary.get('valve-ax')!;
-  }
-  return v;
-});
-
+const visual = computed(() => svgLibrary.get(props.visualId)!);
 const centerX = computed(() => visual.value.viewBox.width / 2);
-const valveColor = computed(() => getIOColor(props.io));
+const pumpColor = computed(() => getIOColor(props.io));
 
 const parsedSvg = computed(() => {
-  const svg = visual.value.svg;
-  
-  // If SVG already contains elements, inject color
-  if (svg.includes('<')) {
-    return svg.replace(/fill="[^"]*"/g, `fill="${valveColor.value}"`);
-  }
-  
-  // If just paths, wrap and color them
-  const paths = svg.split(' M ').map((p, i) => i === 0 ? p : 'M ' + p);
-  return paths.map(p => `<path d="${p}" fill="${valveColor.value}" stroke="#333" stroke-width="2" />`).join('');
+  return visual.value.svg.replace(/fill="#[^"]*"/g, `fill="${pumpColor.value}"`);
 });
 </script>
