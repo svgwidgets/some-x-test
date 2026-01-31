@@ -1,240 +1,90 @@
-<template>
-  <div class="library-demo">
-    <header class="demo-header">
-      <h1>P&ID Component Library Demo</h1>
-      <p>Using library components with visual definitions</p>
-    </header>
-    
-    <div class="demo-controls">
-      <div class="control-group">
-        <h3>Controls</h3>
-        <button @click="toggleValve" class="btn">Toggle Valves</button>
-        <button @click="togglePump" class="btn" :class="{ 'btn-active': pumpIO.value }">
-          {{ pumpIO.value ? 'Stop' : 'Start' }} Pump
-        </button>
-        <button @click="increaseTankLevel" class="btn">Tank +10%</button>
-        <button @click="decreaseTankLevel" class="btn">Tank -10%</button>
-        <button @click="increasePressure" class="btn">Pressure +10</button>
-        <button @click="decreasePressure" class="btn">Pressure -10</button>
-      </div>
-      
-      <div class="control-group">
-        <h3>Status</h3>
-        <div class="status-item">
-          <strong>Valve AX:</strong> 
-          <span :style="{ color: getIOColor(valveAX) }">{{ valveAX.getStateLabel() }}</span>
-        </div>
-        <div class="status-item">
-          <strong>Valve BX:</strong> 
-          <span :style="{ color: getIOColor(valveBX) }">{{ valveBX.getStateLabel() }}</span>
-        </div>
-        <div class="status-item">
-          <strong>Valve CX:</strong> 
-          <span :style="{ color: getIOColor(valveCX) }">{{ valveCX.getStateLabel() }}</span>
-        </div>
-        <div class="status-item">
-          <strong>Pump:</strong> 
-          <span :style="{ color: getIOColor(pumpIO) }">{{ pumpIO.getStateLabel() }}</span>
-        </div>
-        <div class="status-item">
-          <strong>Tank:</strong> 
-          <span :style="{ color: getIOColor(tankIO) }">{{ Math.round(tankIO.value) }}%</span>
-        </div>
-        <div class="status-item">
-          <strong>Pressure:</strong> 
-          <span :style="{ color: getIOColor(pressureIO) }">{{ pressureIO.value.toFixed(1) }} bar</span>
-        </div>
-      </div>
-    </div>
-    
-    <div class="demo-canvas">
-      <svg width="1200" height="600" viewBox="0 0 1200 600">
-        <rect width="1200" height="600" fill="#F5F7FA" />
-        
-        <defs>
-          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#E0E0E0" stroke-width="1" opacity="0.3"/>
-          </pattern>
-        </defs>
-        <rect width="1200" height="600" fill="url(#grid)" />
-        
-        <text x="600" y="40" text-anchor="middle" font-size="20" font-weight="bold" fill="#333">
-          Library Components Demo
-        </text>
-        
-        <!-- Valves using library components -->
-        <text x="100" y="100" font-size="14" font-weight="bold" fill="#666">Valves (from library):</text>
-        
-        <g :transform="`translate(100, 130)`">
-          <Valve :io="valveAX" visualId="valve-ax" />
-        </g>
-        
-        <g :transform="`translate(250, 130)`">
-          <Valve :io="valveBX" visualId="valve-bx" />
-        </g>
-        
-        <g :transform="`translate(400, 130)`">
-          <Valve :io="valveCX" visualId="valve-cx" />
-        </g>
-        
-        <!-- Equipment -->
-        <text x="100" y="260" font-size="14" font-weight="bold" fill="#666">Equipment:</text>
-        
-        <AnimatedComponent 
-          :io="pumpIO" 
-          :animations="pumpIO.value ? [pumpAnimation!] : []"
-        >
-          <g :transform="`translate(100, 290)`">
-            <Pump :io="pumpIO" />
-          </g>
-        </AnimatedComponent>
-        
-        <AnimatedComponent 
-          :io="pipeIO" 
-          :animations="pipeIO.value > 0 ? [pipeAnimation!] : []"
-        >
-          <Pipe
-            :from="{ x: 140, y: 310 }"
-            :to="{ x: 300, y: 310 }"
-            :flowing="pipeIO.value > 0"
-          />
-        </AnimatedComponent>
-        
-        <AnimatedComponent 
-          :io="tankIO" 
-          :animations="[tankAnimation!]"
-        >
-          <g :transform="`translate(300, 240)`">
-            <Tank :io="tankIO" />
-          </g>
-        </AnimatedComponent>
-        
-        <!-- Sensors -->
-        <text x="100" y="480" font-size="14" font-weight="bold" fill="#666">Sensors:</text>
-        
-        <g :transform="`translate(100, 510)`">
-          <Sensor :io="pressureIO" visualId="sensor-pressure" />
-        </g>
-        
-        <g :transform="`translate(250, 510)`">
-          <Sensor :io="temperatureIO" visualId="sensor-temperature" />
-        </g>
-      </svg>
-    </div>
-  </div>
-</template>
+/**
+ * Valve Visual Definitions with Metadata
+ */
 
-<script setup lang="ts">
-import { reactive } from 'vue';
-import { 
-  createDigitalIO, 
-  createAnalogIO, 
-  DIGITAL_IO_PRESETS, 
-  ANALOG_IO_PRESETS,
-  type DigitalIO,
-  type AnalogIO,
-  Valve,
-  Pump,
-  Tank,
-  Sensor,
-  Pipe,
-  AnimatedComponent,
-  animationLibrary,
-  getIOColor
-} from '@/lib';
+import type { VisualDefinition, PathElement } from '../VisualDefinition';
 
-// I/O instances
-const valveAX = reactive(createDigitalIO({
-  id: 'V-001',
-  channel: 'demo.valves.V001.state',
-  initialValue: false,
-  ...DIGITAL_IO_PRESETS.valve,
-})) as DigitalIO;
+/**
+ * Gate Valve - Digital (Open/Closed)
+ */
+export const GATE_VALVE_VISUAL: VisualDefinition = {
+  id: 'gate-valve',
+  name: 'Gate Valve',
+  category: 'Valves',
+  icon: '◇',
+  description: 'Manual gate valve - 2 horizontal triangles (Digital: Open/Closed)',
+  svg: 'M 0 0 L 20 12 L 0 24 Z M 40 0 L 20 12 L 40 24 Z',
+  viewBox: { width: 40, height: 24 },
+  ports: [
+    { id: 'inlet', type: 'inlet', position: { x: 0, y: 12 } },
+    { id: 'outlet', type: 'outlet', position: { x: 40, y: 12 } },
+  ],
+  colorTargets: [
+    { selector: '.valve-body', property: 'fill', defaultColor: '#F44336' },
+  ],
+  
+  metadata: {
+    // Parsed paths for rendering
+    paths: [
+      'M 0 0 L 20 12 L 0 24 Z',
+      'M 40 0 L 20 12 L 40 24 Z',
+    ],
+  },
+};
 
-const valveBX = reactive(createDigitalIO({
-  id: 'V-002',
-  channel: 'demo.valves.V002.state',
-  initialValue: false,
-  ...DIGITAL_IO_PRESETS.valve,
-})) as DigitalIO;
+/**
+ * Control Valve - Analog (0-100% position)
+ */
+export const CONTROL_VALVE_VISUAL: VisualDefinition = {
+  id: 'control-valve',
+  name: 'Control Valve',
+  category: 'Valves',
+  icon: '◇⊃',
+  description: 'Pneumatic control valve with positioner (Analog: 0-100% position)',
+  svg: `
+    <g class="control-valve">
+      <path d="M 0 28 L 18 14 L 0 0 Z M 36 28 L 18 14 L 36 0 Z" class="valve-body" />
+      <line x1="18" y1="14" x2="18" y2="-8" class="valve-stem" />
+      <path d="M 11 -8 A 7 7 0 0 1 25 -8 Z" class="valve-actuator" />
+    </g>
+  `,
+  viewBox: { width: 36, height: 28 },
+  ports: [
+    { id: 'inlet', type: 'inlet', position: { x: 0, y: 14 } },
+    { id: 'outlet', type: 'outlet', position: { x: 36, y: 14 } },
+  ],
+  colorTargets: [
+    { selector: '.valve-body', property: 'fill', defaultColor: '#2196F3' },
+    { selector: '.valve-actuator', property: 'fill', defaultColor: '#90CAF9' },
+  ],
+  
+  metadata: {
+    elements: {
+      body: {
+        type: 'path',
+        d: 'M 0 28 L 18 14 L 0 0 Z M 36 28 L 18 14 L 36 0 Z',
+        class: 'valve-body',
+      } as PathElement,
+      stem: {
+        type: 'line',
+        x1: 18,
+        y1: 14,
+        x2: 18,
+        y2: -8,
+        class: 'valve-stem',
+      },
+      actuator: {
+        type: 'path',
+        d: 'M 11 -8 A 7 7 0 0 1 25 -8 Z',
+        class: 'valve-actuator',
+      } as PathElement,
+    },
+    positionDisplay: { x: 18, y: 20 },
+    stateLabel: { x: 18, y: -18 },
+  },
+};
 
-const valveCX = reactive(createDigitalIO({
-  id: 'V-003',
-  channel: 'demo.valves.V003.state',
-  initialValue: true,
-  ...DIGITAL_IO_PRESETS.valve,
-})) as DigitalIO;
-
-const pumpIO = reactive(createDigitalIO({
-  id: 'P-001',
-  channel: 'demo.pumps.P001.state',
-  initialValue: false,
-  ...DIGITAL_IO_PRESETS.pump,
-})) as DigitalIO;
-
-const tankIO = reactive(createAnalogIO({
-  id: 'TK-001',
-  channel: 'demo.tanks.TK001.level',
-  initialValue: 50,
-  ...ANALOG_IO_PRESETS.level,
-})) as AnalogIO;
-
-const pressureIO = reactive(createAnalogIO({
-  id: 'PT-001',
-  channel: 'demo.sensors.PT001.value',
-  initialValue: 100,
-  ...ANALOG_IO_PRESETS.pressure,
-})) as AnalogIO;
-
-const temperatureIO = reactive(createAnalogIO({
-  id: 'TT-001',
-  channel: 'demo.sensors.TT001.value',
-  initialValue: 75,
-  ...ANALOG_IO_PRESETS.temperature,
-})) as AnalogIO;
-
-const pipeIO = reactive(createAnalogIO({
-  id: 'PIPE-001',
-  channel: 'demo.pipes.PIPE001.flow',
-  initialValue: 0,
-  unit: 'L/min',
-  range: { min: 0, max: 500 },
-})) as AnalogIO;
-
-// Animations
-const pumpAnimation = animationLibrary.get('pump-rotation');
-const tankAnimation = animationLibrary.get('tank-fill');
-const pipeAnimation = animationLibrary.get('pipe-flow');
-
-// Controls
-function toggleValve() {
-  valveAX.toggle();
-  valveBX.toggle();
-  valveCX.toggle();
-}
-
-function togglePump() {
-  pumpIO.toggle();
-  pipeIO.updateValue(pumpIO.value ? 150 : 0);
-}
-
-function increaseTankLevel() {
-  tankIO.updateValue(Math.min(100, tankIO.value + 10));
-}
-
-function decreaseTankLevel() {
-  tankIO.updateValue(Math.max(0, tankIO.value - 10));
-}
-
-function increasePressure() {
-  pressureIO.updateValue(Math.min(200, pressureIO.value + 10));
-}
-
-function decreasePressure() {
-  pressureIO.updateValue(Math.max(0, pressureIO.value - 10));
-}
-</script>
-
-<style scoped>
-/* ... same styles ... */
-</style>
+export const VALVE_VISUALS = [
+  GATE_VALVE_VISUAL,
+  CONTROL_VALVE_VISUAL,
+];
