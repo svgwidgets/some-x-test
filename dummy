@@ -78,10 +78,10 @@ const props = withDefaults(defineProps<Props>(), {
   showLabel: true,
 });
 
-const visual = computed(() => svgLibrary.get('pressure-sensor')!);
+const visual = computed(() => svgLibrary.get('temperature-sensor')!);
 const elements = computed(() => visual.value.metadata?.elements || {});
 const textPositions = computed(() => visual.value.metadata?.textPositions || {});
-const defaultTag = computed(() => visual.value.metadata?.defaultTag || 'PT');
+const defaultTag = computed(() => visual.value.metadata?.defaultTag || 'TT');
 
 const tag = computed(() => props.tag || defaultTag.value);
 const valueColor = computed(() => getIOColor(props.io));
